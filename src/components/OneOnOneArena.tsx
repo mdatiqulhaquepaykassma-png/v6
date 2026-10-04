@@ -32,6 +32,7 @@ import {
 import { UserWallet, P2PRoom, PlayingCard } from "../types";
 import { sound } from "../utils/audio";
 import { getActiveCurrencySymbol, formatCurrency } from "../utils/currency";
+import confetti from "canvas-confetti";
 
 interface OneOnOneArenaProps {
   user: UserWallet | null;
@@ -348,6 +349,25 @@ export const OneOnOneArena: React.FC<OneOnOneArenaProps> = ({ user, onUpdateWall
                   .then((r) => r.json())
                   .then((updated) => onUpdateWallet(updated))
                   .catch(() => {});
+              }
+
+              // Lightweight Canvas Confetti on Win
+              const userWon = serverDuel.winnerRole === prev.userRole;
+              if (userWon) {
+                const isBigWin = serverDuel.currentPot >= 1000;
+                confetti({
+                  particleCount: isBigWin ? 150 : 70,
+                  spread: isBigWin ? 100 : 70,
+                  origin: { y: 0.6 },
+                  colors: ["#F59E0B", "#FBBF24", "#10B981", "#FFFFFF"],
+                  zIndex: 9999,
+                });
+
+                if (isBigWin) {
+                  sound.speak("Big win! Congratulations!");
+                } else {
+                  sound.speak("You won the duel!");
+                }
               }
             }
           }
