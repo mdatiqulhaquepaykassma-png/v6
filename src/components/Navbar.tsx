@@ -144,7 +144,7 @@ export const Navbar = React.memo<NavbarProps>(({
               }`}
               title={isInstalled 
                 ? (lang === "bn" ? "অ্যাপ ওপেন করুন" : "Open App")
-                : (lang === "bn" ? "অ্যাপ ইনস্টল ও ওপেন গাইড" : "Install Mobile App")}
+                : (lang === "bn" ? "অ্যাপ ইনস্টল করুন" : "Install Mobile App")}
             >
               <Smartphone className={`w-3.5 h-3.5 ${isInstalled ? "text-emerald-400" : "text-amber-400 animate-pulse"}`} />
               <span>{isInstalled ? (lang === "bn" ? "ওপেন" : "Open") : (lang === "bn" ? "ইনস্টল" : "Install")}</span>

@@ -29,12 +29,22 @@ export function usePWAInstall(): PWAInstallState {
       window.matchMedia('(display-mode: fullscreen)').matches ||
       window.matchMedia('(display-mode: minimal-ui)').matches ||
       (window.navigator as unknown as { standalone?: boolean }).standalone === true ||
-      document.referrer.includes('android-app://')
+      document.referrer.includes('android-app://') ||
+      window.location.search.includes('standalone=true')
     );
   };
 
+  const checkStoredInstall = (): boolean => {
+    if (typeof window === 'undefined') return false;
+    try {
+      return localStorage.getItem('dt_pwa_installed') === 'true';
+    } catch {
+      return false;
+    }
+  };
+
   const [isStandalone, setIsStandalone] = useState<boolean>(checkIsStandalone);
-  const [isInstalled, setIsInstalled] = useState<boolean>(checkIsStandalone);
+  const [isInstalled, setIsInstalled] = useState<boolean>(() => checkIsStandalone() || checkStoredInstall());
   const [isIOS, setIsIOS] = useState(false);
   const [isAndroid, setIsAndroid] = useState(false);
   const [isSafari, setIsSafari] = useState(false);
@@ -47,6 +57,9 @@ export function usePWAInstall(): PWAInstallState {
       setIsStandalone(stand);
       if (stand) {
         setIsInstalled(true);
+        try {
+          localStorage.setItem('dt_pwa_installed', 'true');
+        } catch {}
       }
     };
 
@@ -55,6 +68,20 @@ export function usePWAInstall(): PWAInstallState {
     // Check pre-captured early event
     if (typeof window !== 'undefined' && (window as any).__deferredInstallPrompt) {
       setDeferredPrompt((window as any).__deferredInstallPrompt);
+    }
+
+    // Check getInstalledRelatedApps API if supported
+    if (typeof navigator !== 'undefined' && 'getInstalledRelatedApps' in navigator) {
+      (navigator as any).getInstalledRelatedApps()
+        .then((relatedApps: any[]) => {
+          if (Array.isArray(relatedApps) && relatedApps.length > 0) {
+            setIsInstalled(true);
+            try {
+              localStorage.setItem('dt_pwa_installed', 'true');
+            } catch {}
+          }
+        })
+        .catch(() => {});
     }
 
     // User Agent & Device Detection
@@ -84,6 +111,9 @@ export function usePWAInstall(): PWAInstallState {
     const handleAppInstalled = () => {
       setIsInstalled(true);
       setDeferredPrompt(null);
+      try {
+        localStorage.setItem('dt_pwa_installed', 'true');
+      } catch {}
       if (typeof window !== 'undefined') {
         (window as any).__deferredInstallPrompt = null;
       }
@@ -115,6 +145,9 @@ export function usePWAInstall(): PWAInstallState {
         const { outcome } = await promptEvent.userChoice;
         if (outcome === 'accepted') {
           setIsInstalled(true);
+          try {
+            localStorage.setItem('dt_pwa_installed', 'true');
+          } catch {}
           setDeferredPrompt(null);
           if (typeof window !== 'undefined') {
             (window as any).__deferredInstallPrompt = null;
@@ -129,15 +162,17 @@ export function usePWAInstall(): PWAInstallState {
   }, [deferredPrompt]);
 
   const openApp = useCallback(() => {
-    // If running in standalone mode, already open
+    // If already running inside standalone app, nothing to do
     if (checkIsStandalone()) {
       return;
     }
-    // Attempt standard navigation or trigger install
+
     try {
-      window.location.href = '/';
+      // Direct navigation to app scope to trigger WebAPK / link-capturing
+      const targetUrl = window.location.origin + '/';
+      window.location.href = targetUrl;
     } catch (e) {
-      console.error(e);
+      window.location.href = '/';
     }
   }, []);
 
@@ -155,4 +190,3 @@ export function usePWAInstall(): PWAInstallState {
     openApp,
   };
 }
-

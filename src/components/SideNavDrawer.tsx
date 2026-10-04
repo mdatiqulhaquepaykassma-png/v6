@@ -387,8 +387,8 @@ export const SideNavDrawer: React.FC<SideNavDrawerProps> = ({
                 </div>
                 <p className="text-[10px] text-neutral-400 leading-snug">
                   {lang === "bn"
-                    ? "ফুল-স্ক্রিন ক্যাসিনো অভিজ্ঞতার জন্য হোম স্ক্রিনে অ্যাপ যুক্ত করুন বা ইনস্টল গাইড দেখুন।"
-                    : "Add game to home screen for full-screen native casino experience or view launch guide."}
+                    ? "ফুল-স্ক্রিন ক্যাসিনো অভিজ্ঞতার জন্য ১-ক্লিকে অ্যাপ ইনস্টল বা ওপেন করুন।"
+                    : "Install or open the app in 1-click for a native full-screen casino experience."}
                 </p>
                 <button
                   onClick={() => {
@@ -405,7 +405,7 @@ export const SideNavDrawer: React.FC<SideNavDrawerProps> = ({
                   <span>
                     {isInstalled
                       ? (lang === "bn" ? "অ্যাপ ওপেন করুন" : "Open App")
-                      : (lang === "bn" ? "ইনস্টল ও ওপেন গাইড" : "Install & Launch Guide")}
+                      : (lang === "bn" ? "অ্যাপ ইনস্টল করুন" : "Install App")}
                   </span>
                 </button>
               </div>
