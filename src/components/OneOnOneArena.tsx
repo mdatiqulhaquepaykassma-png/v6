@@ -1085,6 +1085,81 @@ export const OneOnOneArena: React.FC<OneOnOneArenaProps> = ({ user, onUpdateWall
             </div>
           </div>
 
+          {/* Smart 1-Click Quick Matchmaking Tiers (Zero-Scroll Responsive Grid) */}
+          <div className="grid grid-cols-3 gap-1.5 sm:gap-2 shrink-0">
+            {/* 1. Express Tier */}
+            <button
+              onClick={() => handleStartMatchmaking("Express")}
+              disabled={isSearching}
+              className={`p-2 sm:p-2.5 rounded-xl border transition-all text-left relative overflow-hidden group cursor-pointer active:scale-95 ${
+                queueTier === "Express" && isSearching
+                  ? "bg-amber-500/20 border-amber-400 ring-2 ring-amber-400/50 shadow-lg shadow-amber-500/20"
+                  : "bg-neutral-900/90 hover:bg-neutral-850 border-neutral-800 hover:border-amber-500/50 shadow"
+              }`}
+            >
+              <div className="flex items-center justify-between mb-1">
+                <span className="px-1.5 py-0.5 rounded text-[8px] font-black uppercase tracking-wider bg-blue-500/20 text-blue-300 border border-blue-500/30">
+                  ⚡ FAST
+                </span>
+                <span className="text-[10px] text-neutral-400 font-mono font-bold">60s</span>
+              </div>
+              <div className="text-xs sm:text-sm font-black text-white group-hover:text-amber-300 transition-colors">
+                Express
+              </div>
+              <div className="text-amber-400 font-mono font-black text-xs sm:text-sm mt-0.5">
+                {currencySymbol}100 <span className="text-[9px] text-neutral-400 font-normal font-sans">Ante</span>
+              </div>
+            </button>
+
+            {/* 2. Classic Tier */}
+            <button
+              onClick={() => handleStartMatchmaking("Classic")}
+              disabled={isSearching}
+              className={`p-2 sm:p-2.5 rounded-xl border transition-all text-left relative overflow-hidden group cursor-pointer active:scale-95 ${
+                queueTier === "Classic" && isSearching
+                  ? "bg-amber-500/20 border-amber-400 ring-2 ring-amber-400/50 shadow-lg shadow-amber-500/20"
+                  : "bg-neutral-900/90 hover:bg-neutral-850 border-amber-500/40 hover:border-amber-400 shadow-md shadow-amber-500/10"
+              }`}
+            >
+              <div className="flex items-center justify-between mb-1">
+                <span className="px-1.5 py-0.5 rounded text-[8px] font-black uppercase tracking-wider bg-amber-500/20 text-amber-300 border border-amber-500/40">
+                  🔥 POPULAR
+                </span>
+                <span className="text-[10px] text-amber-400 font-mono font-bold">Ranked</span>
+              </div>
+              <div className="text-xs sm:text-sm font-black text-white group-hover:text-amber-300 transition-colors">
+                Classic
+              </div>
+              <div className="text-amber-400 font-mono font-black text-xs sm:text-sm mt-0.5">
+                {currencySymbol}500 <span className="text-[9px] text-neutral-400 font-normal font-sans">Ante</span>
+              </div>
+            </button>
+
+            {/* 3. VIP Tier */}
+            <button
+              onClick={() => handleStartMatchmaking("VIP")}
+              disabled={isSearching}
+              className={`p-2 sm:p-2.5 rounded-xl border transition-all text-left relative overflow-hidden group cursor-pointer active:scale-95 ${
+                queueTier === "VIP" && isSearching
+                  ? "bg-amber-500/20 border-amber-400 ring-2 ring-amber-400/50 shadow-lg shadow-amber-500/20"
+                  : "bg-neutral-900/90 hover:bg-neutral-850 border-purple-500/40 hover:border-purple-400 shadow"
+              }`}
+            >
+              <div className="flex items-center justify-between mb-1">
+                <span className="px-1.5 py-0.5 rounded text-[8px] font-black uppercase tracking-wider bg-purple-500/20 text-purple-300 border border-purple-500/30">
+                  👑 VIP PRO
+                </span>
+                <span className="text-[10px] text-purple-400 font-mono font-bold">High</span>
+              </div>
+              <div className="text-xs sm:text-sm font-black text-white group-hover:text-purple-300 transition-colors">
+                High Roller
+              </div>
+              <div className="text-purple-300 font-mono font-black text-xs sm:text-sm mt-0.5">
+                {currencySymbol}2,000 <span className="text-[9px] text-neutral-400 font-normal font-sans">Ante</span>
+              </div>
+            </button>
+          </div>
+
           {/* Compact Private Duel Action Bar */}
           <div className="bg-neutral-950/80 border border-white/10 rounded-xl p-2 sm:p-2.5 flex flex-col sm:flex-row items-center justify-between gap-2 shadow shrink-0">
             <div className="flex items-center gap-2 text-center sm:text-left">
@@ -2729,9 +2804,6 @@ export const OneOnOneArena: React.FC<OneOnOneArenaProps> = ({ user, onUpdateWall
           )}
         </div>
       )}
-
-      {/* Clean Mobile End Spacer */}
-      <div className="h-6 md:h-2" />
     </div>
   );
 };

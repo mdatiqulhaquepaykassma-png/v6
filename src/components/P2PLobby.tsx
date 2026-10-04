@@ -47,9 +47,10 @@ interface P2PLobbyProps {
   onUpdateWallet: (updatedUser: UserWallet) => void;
   onRequireLogin?: () => void;
   isGuestMode?: boolean;
+  isLandscape?: boolean;
 }
 
-export const P2PLobby = React.memo<P2PLobbyProps>(({ user, onUpdateWallet, onRequireLogin, isGuestMode = false }) => {
+export const P2PLobby = React.memo<P2PLobbyProps>(({ user, onUpdateWallet, onRequireLogin, isGuestMode = false, isLandscape = false }) => {
   const [activeP2pTab, setActiveP2pTab] = useState<'arena' | 'custom_lobby'>('arena');
   const [rooms, setRooms] = useState<P2PRoom[]>([]);
   const [isInitialLoading, setIsInitialLoading] = useState<boolean>(true);
@@ -691,7 +692,7 @@ export const P2PLobby = React.memo<P2PLobbyProps>(({ user, onUpdateWallet, onReq
 
   if (activeP2pTab === 'arena') {
     return (
-      <div className="w-full h-full flex-1 min-h-0 flex flex-col overflow-hidden p-1 sm:p-2 select-none">
+      <div className={`w-full h-full flex-1 min-h-0 flex flex-col overflow-hidden p-1 sm:p-2 ${isLandscape ? "pb-1" : "pb-14 md:pb-2"} select-none`}>
         {/* Top P2P Mode Switcher Bar - Compact Zero-Scroll Header */}
         <div className="bg-neutral-950/90 border border-white/10 p-1 rounded-xl flex items-center gap-1 shadow-lg shrink-0 mb-1 sm:mb-2 max-w-5xl mx-auto w-full">
           <button

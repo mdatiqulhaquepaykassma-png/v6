@@ -1000,6 +1000,7 @@ export default function App() {
                   onUpdateWallet={setUser}
                   onRequireLogin={() => setAuthScreenMode("signin")}
                   isGuestMode={isGuestMode}
+                  isLandscape={isLandscape}
                 />
               </div>
             )}
