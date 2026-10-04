@@ -1,12 +1,1 @@
-[
-  {
-    "id": "wdr_2001",
-    "userId": "usr_seed_3",
-    "username": "HighRollerBD",
-    "amount": 2500,
-    "method": "bKash Personal",
-    "accountNumber": "01999887766",
-    "status": "PENDING",
-    "timestamp": "2026-10-04T17:27:39.386Z"
-  }
-]
+[{"id":"wdr_2001","userId":"usr_seed_3","username":"HighRollerBD","amount":2500,"method":"bKash Personal","accountNumber":"01999887766","status":"PENDING","timestamp":"2026-10-04T17:27:39.386Z"}]
