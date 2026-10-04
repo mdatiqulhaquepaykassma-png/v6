@@ -25,6 +25,7 @@ export const MobileBottomNav = React.memo<MobileBottomNavProps>(({
   onOpenBetHistory,
   onOpenInstallApp,
   isStandalone = false,
+  isInstalled = false,
   user,
   openRoomsCount = 0,
   selectedCurrency,

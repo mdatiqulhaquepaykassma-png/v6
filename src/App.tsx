@@ -325,7 +325,11 @@ export default function App() {
 
   const handleTriggerInstallApp = async () => {
     sound.playButtonClick();
-    await install();
+    if (isInstalled) {
+      openApp();
+    } else {
+      await install();
+    }
   };
 
   // Active round reference for Provably Fair modal

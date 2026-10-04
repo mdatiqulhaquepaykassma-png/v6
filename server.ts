@@ -95,7 +95,7 @@ app.get("/api/time", (_req, res) => {
 // Version Endpoint for Auto-Update & Mobile Deployment Cache Busting
 app.get("/api/version", (_req, res) => {
   res.status(200).json({
-    version: process.env.RENDER_GIT_COMMIT || process.env.COMMIT_REF || "v3.1.0-DEPLOY-SYNC-2026.10.04.101",
+    version: process.env.RENDER_GIT_COMMIT || process.env.COMMIT_REF || "v3.1.2-POLL-RELOAD-2026.10.04.102",
     timestamp: Date.now(),
   });
 });
@@ -772,6 +772,7 @@ interface ActiveDuel {
   netProfitAcceptor?: number;
   spectatorsCount?: number;
   lastUpdated: number;
+  balanceType: "real" | "demo";
 }
 
 const activeDuels: Record<string, ActiveDuel> = {};
@@ -1242,8 +1243,14 @@ function settleDuelOnFold(duel: ActiveDuel, foldingUserId: string) {
   
   const winnerRole = isCreator ? duel.acceptorRole : duel.creatorRole;
   
+  const isDemo = duel.balanceType === "demo";
+  
   if (winnerUser) {
-    winnerUser.balance += winnerPayout;
+    if (isDemo) {
+      winnerUser.demoBalance += winnerPayout;
+    } else {
+      winnerUser.balance += winnerPayout;
+    }
     winnerUser.totalWon += winnerPayout - (isCreator ? duel.acceptorBet : duel.creatorBet);
     winnerUser.gamesPlayed += 1;
     addTransactionToUser(winnerUser, {
@@ -1251,7 +1258,7 @@ function settleDuelOnFold(duel: ActiveDuel, foldingUserId: string) {
       type: "deposit",
       amount: winnerPayout,
       timestamp: new Date().toISOString(),
-      description: `1v1 Duel Win (Opponent Folded) on Round #${duel.id}! Payout: ৳${winnerPayout.toLocaleString()} (Pot: ৳${totalPot.toLocaleString()}, House 5%: ৳${companyProfit.toLocaleString()})`,
+      description: `1v1 Duel Win (Opponent Folded) (${isDemo ? "Demo" : "Real"}) on Round #${duel.id}! Payout: ৳${winnerPayout.toLocaleString()} (Pot: ৳${totalPot.toLocaleString()}, House 5%: ৳${companyProfit.toLocaleString()})`,
     });
     
     // Stats win record
@@ -1386,8 +1393,14 @@ function settleDuelOnShowdown(duel: ActiveDuel) {
     const winnerBet = creatorIsWinner ? duel.creatorBet : duel.acceptorBet;
     const loserBet = creatorIsWinner ? duel.acceptorBet : duel.creatorBet;
     
+    const isDemo = duel.balanceType === "demo";
+    
     if (winnerUser) {
-      winnerUser.balance += winnerPayout;
+      if (isDemo) {
+        winnerUser.demoBalance += winnerPayout;
+      } else {
+        winnerUser.balance += winnerPayout;
+      }
       winnerUser.totalWon += winnerPayout - winnerBet;
       winnerUser.gamesPlayed += 1;
       addTransactionToUser(winnerUser, {
@@ -1395,7 +1408,7 @@ function settleDuelOnShowdown(duel: ActiveDuel) {
         type: "deposit",
         amount: winnerPayout,
         timestamp: new Date().toISOString(),
-        description: `1v1 Showdown WIN vs @${loserUser?.username || "Player"}! Payout: ৳${winnerPayout.toLocaleString()} (Pot: ৳${totalPot.toLocaleString()}, House 5%: ৳${companyProfit.toLocaleString()})`,
+        description: `1v1 Showdown WIN (${isDemo ? "Demo" : "Real"}) vs @${loserUser?.username || "Player"}! Payout: ৳${winnerPayout.toLocaleString()} (Pot: ৳${totalPot.toLocaleString()}, House 5%: ৳${companyProfit.toLocaleString()})`,
       });
       const stats = ensureUserStats(winnerUser);
       stats.totalHandsPlayed += 1;
@@ -3101,13 +3114,18 @@ const checkExpiredRooms = () => {
         room.status = "cancelled" as any;
         const creator = mockUsers[room.creatorId];
         if (creator) {
-          creator.balance += room.amount;
+          const isDemo = room.balanceType === "demo";
+          if (isDemo) {
+            creator.demoBalance += room.amount;
+          } else {
+            creator.balance += room.amount;
+          }
           addTransactionToUser(creator, {
             id: `tx_p2p_expire_${Date.now()}_${Math.random().toString(36).substr(2, 4)}`,
             type: "deposit",
             amount: room.amount,
             timestamp: new Date().toISOString(),
-            description: `Refund P2P Challenge: Room expired after 5 minutes without opponent (Stake: ৳${room.amount.toLocaleString()})`,
+            description: `Refund P2P Challenge (${isDemo ? "Demo" : "Real"}): Room expired after 5 minutes without opponent (Stake: ৳${room.amount.toLocaleString()})`,
           });
         }
         activeRooms.splice(i, 1);
@@ -3583,6 +3601,7 @@ app.post("/api/rooms/accept", requireUser, (req, res) => {
     
     currentPot: room.amount + requiredAcceptorStake,
     currentRaise: Math.max(room.amount, requiredAcceptorStake),
+    balanceType: room.balanceType || "real",
     bettingRound: 1,
     turnUser: "DRAGON",
     secondsRemaining: 60,
@@ -3734,11 +3753,18 @@ app.post("/api/rooms/duel/:roomId/action", requireUser, (req, res) => {
     }
   }
   
-  if (user.balance < additionalCost) {
-    return res.status(400).json({ error: `Insufficient balance. Action cost is ৳${additionalCost.toLocaleString()} but you have ৳${user.balance.toLocaleString()}.` });
+  const isDemo = duel.balanceType === "demo";
+  const userBalance = isDemo ? user.demoBalance : user.balance;
+  
+  if (userBalance < additionalCost) {
+    return res.status(400).json({ error: `🚫 অপর্যাপ্ত ${isDemo ? "ডেমো" : "মূল"} ব্যালেন্স! অ্যাকশন সম্পন্ন করতে আপনার ব্যালেন্সে অন্তত ৳${additionalCost.toLocaleString()} চips থাকতে হবে।` });
   }
   
-  user.balance -= additionalCost;
+  if (isDemo) {
+    user.demoBalance -= additionalCost;
+  } else {
+    user.balance -= additionalCost;
+  }
   
   const updatedUserBet = userBet + additionalCost;
   if (isCreator) {
@@ -4801,10 +4827,11 @@ app.post("/api/ai-dealer", async (req, res) => {
       });
     }
 
-    const response = await ai.getGenerativeModel({
-      model: "gemini-1.5-flash",
-    }).generateContent(`You are an elite, charismatic Asian casino dealer for Dragon Tiger P2P. Provide one punchy, exciting casino sentence for players placing bets. Last round winner: ${safeWinner}. Keep it high energy.`);
-    res.json({ commentary: response.response.text() });
+    const response = await ai.models.generateContent({
+      model: "gemini-3.8-flash",
+      contents: `You are an elite, charismatic Asian casino dealer for Dragon Tiger P2P. Provide one punchy, exciting casino sentence for players placing bets. Last round winner: ${safeWinner}. Keep it high energy.`
+    });
+    res.json({ commentary: response.text });
   } catch {
     res.json({
       commentary: "Cards are in play! Will the Dragon roar or will the Tiger strike? Place your bets!",

@@ -50,9 +50,40 @@ const syncDeployment = async () => {
   return false;
 };
 
+// Background Polling: Periodically check if a new version is deployed on the server
+const startBackgroundUpdatePolling = () => {
+  if (import.meta.env.DEV) return;
+  
+  // Initial check after 30 seconds, then every 5 minutes
+  setTimeout(() => {
+    const poll = async () => {
+      try {
+        const res = await fetch('/api/version', { cache: 'no-store' });
+        if (res.ok) {
+          const data = await res.json();
+          // If server version is different from the version this client was bundled with
+          if (data.version && data.version !== BUILD_NUMBER) {
+            console.warn(`[UPDATE] New version available: ${data.version}. Automatic reload triggered.`);
+            // Clear the sync key so the boot-up sync logic handles the purge on next load
+            localStorage.removeItem('apex_last_synced_version');
+            window.location.reload();
+          }
+        }
+      } catch (e) {
+        // Silent fail for background polling network issues
+      }
+    };
+    
+    poll();
+    setInterval(poll, 1000 * 60 * 5); // 5 minute intervals
+  }, 30000);
+};
+
 const init = async () => {
   const isReloading = await syncDeployment();
   if (isReloading) return;
+
+  startBackgroundUpdatePolling();
 
   // Automatically register and update service worker in production builds
   if (import.meta.env.PROD && typeof window !== 'undefined' && 'serviceWorker' in navigator) {

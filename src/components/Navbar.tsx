@@ -76,6 +76,7 @@ export const Navbar = React.memo<NavbarProps>(({
   onOpenRegister,
   onOpenInstallApp,
   isStandalone = false,
+  isInstalled = false,
   selectedCurrency,
   lang = "bn",
   isLandscape = false,
@@ -136,11 +137,17 @@ export const Navbar = React.memo<NavbarProps>(({
           {onOpenInstallApp && !isStandalone && (
             <button
               onClick={onOpenInstallApp}
-              className="flex items-center gap-1 px-2.5 py-1 rounded-lg text-[10px] font-black uppercase tracking-wider transition-all cursor-pointer bg-amber-500/20 hover:bg-amber-500/30 text-amber-300 border border-amber-400/40 shadow-sm active:scale-95"
-              title={lang === "bn" ? "অ্যাপ ইনস্টল ও ওপেন গাইড" : "Install Mobile App"}
+              className={`flex items-center gap-1 px-2.5 py-1 rounded-lg text-[10px] font-black uppercase tracking-wider transition-all cursor-pointer border shadow-sm active:scale-95 ${
+                isInstalled 
+                  ? "bg-emerald-500/20 hover:bg-emerald-500/30 text-emerald-300 border-emerald-400/40"
+                  : "bg-amber-500/20 hover:bg-amber-500/30 text-amber-300 border-amber-400/40"
+              }`}
+              title={isInstalled 
+                ? (lang === "bn" ? "অ্যাপ ওপেন করুন" : "Open App")
+                : (lang === "bn" ? "অ্যাপ ইনস্টল ও ওপেন গাইড" : "Install Mobile App")}
             >
-              <Smartphone className="w-3.5 h-3.5 text-amber-400 animate-pulse" />
-              <span>{lang === "bn" ? "ইনস্টল" : "Install"}</span>
+              <Smartphone className={`w-3.5 h-3.5 ${isInstalled ? "text-emerald-400" : "text-amber-400 animate-pulse"}`} />
+              <span>{isInstalled ? (lang === "bn" ? "ওপেন" : "Open") : (lang === "bn" ? "ইনস্টল" : "Install")}</span>
             </button>
           )}
 

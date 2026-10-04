@@ -18,9 +18,11 @@ interface PWAInstallModalProps {
   lang?: "bn" | "en";
   hasPrompt: boolean;
   isStandalone: boolean;
+  isInstalled: boolean;
   isIOS: boolean;
   isAndroid: boolean;
   onTriggerInstall: () => Promise<boolean>;
+  onOpenApp: () => void;
 }
 
 export const PWAInstallModal: React.FC<PWAInstallModalProps> = ({
@@ -29,28 +31,38 @@ export const PWAInstallModal: React.FC<PWAInstallModalProps> = ({
   lang = "bn",
   hasPrompt,
   isStandalone,
+  isInstalled,
   isIOS,
   onTriggerInstall,
+  onOpenApp,
 }) => {
   const [installing, setInstalling] = useState(false);
   const [installSuccess, setInstallSuccess] = useState(false);
 
   const handleDirectInstall = async () => {
     sound.playButtonClick();
+    if (isInstalled) {
+      onOpenApp();
+      onClose();
+      return;
+    }
     setInstalling(true);
     try {
       const success = await onTriggerInstall();
       if (success) {
         sound.playWinFanfare();
         setInstallSuccess(true);
-        setTimeout(() => {
-          onClose();
-        }, 1500);
       }
     } finally {
       setInstalling(false);
     }
   };
+  
+  const buttonText = isInstalled || installSuccess 
+    ? (lang === "bn" ? "অ্যাপ ওপেন করুন" : "Open App")
+    : (installing 
+        ? (lang === "bn" ? "ইনস্টল হচ্ছে..." : "Installing...")
+        : (lang === "bn" ? "ইনস্টল করুন (Install App)" : "Install App"));
 
   return (
     <AnimatePresence>
@@ -96,7 +108,7 @@ export const PWAInstallModal: React.FC<PWAInstallModalProps> = ({
 
           {/* Action Body */}
           <div className="p-5 pt-0 space-y-4">
-            {isIOS ? (
+            {isIOS && !isInstalled ? (
               /* iOS Safari Direct 2-Step Visual Badge */
               <div className="bg-neutral-900/90 border border-amber-500/30 rounded-2xl p-3.5 space-y-2.5 text-xs text-neutral-200">
                 <div className="flex items-center gap-2 text-amber-300 font-bold">
@@ -121,23 +133,21 @@ export const PWAInstallModal: React.FC<PWAInstallModalProps> = ({
                 </div>
               </div>
             ) : (
-              /* Direct Install Action Button */
+              /* Direct Install/Open Action Button */
               <button
                 onClick={handleDirectInstall}
-                disabled={installing || installSuccess}
+                disabled={installing}
                 className="w-full py-3.5 bg-gradient-to-r from-amber-400 via-amber-500 to-amber-600 hover:from-amber-300 hover:to-amber-500 text-neutral-950 font-black text-sm rounded-2xl shadow-[0_10px_30px_rgba(245,158,11,0.4)] flex items-center justify-center gap-2 cursor-pointer transition-all active:scale-[0.98]"
               >
-                {installSuccess ? (
+                {installSuccess || isInstalled ? (
                   <>
                     <CheckCircle2 className="w-5 h-5 text-neutral-950" />
-                    <span>{lang === "bn" ? "ইনস্টল সফল হয়েছে!" : "App Installed!"}</span>
+                    <span>{buttonText}</span>
                   </>
-                ) : installing ? (
-                  <span>{lang === "bn" ? "ইনস্টল হচ্ছে..." : "Installing..."}</span>
                 ) : (
                   <>
                     <Download className="w-5 h-5 stroke-[2.5]" />
-                    <span>{lang === "bn" ? "ইনস্টল করুন (Install App)" : "Install App"}</span>
+                    <span>{buttonText}</span>
                   </>
                 )}
               </button>
