@@ -46,11 +46,10 @@ interface P2PLobbyProps {
   user: UserWallet | null;
   onUpdateWallet: (updatedUser: UserWallet) => void;
   onRequireLogin?: () => void;
-  isGuestMode?: boolean;
   isLandscape?: boolean;
 }
 
-export const P2PLobby = React.memo<P2PLobbyProps>(({ user, onUpdateWallet, onRequireLogin, isGuestMode = false, isLandscape = false }) => {
+export const P2PLobby = React.memo<P2PLobbyProps>(({ user, onUpdateWallet, onRequireLogin, isLandscape = false }) => {
   const [activeP2pTab, setActiveP2pTab] = useState<'arena' | 'custom_lobby'>('arena');
   const [rooms, setRooms] = useState<P2PRoom[]>([]);
   const [isInitialLoading, setIsInitialLoading] = useState<boolean>(true);
@@ -440,11 +439,6 @@ export const P2PLobby = React.memo<P2PLobbyProps>(({ user, onUpdateWallet, onReq
     setErrorMsg('');
     setSuccessMsg('');
 
-    if (isGuestMode) {
-      setErrorMsg("👁️ Guest Mode is active (Read-Only State). Room creation is disabled.");
-      return;
-    }
-
     if (!user) {
       onRequireLogin?.();
       return;
@@ -454,8 +448,9 @@ export const P2PLobby = React.memo<P2PLobbyProps>(({ user, onUpdateWallet, onReq
     const opponentStakeToUse = isQuick ? 250 : numOpponentStake;
     const oddsToUse = isQuick ? 2.0 : calculatedOdds;
 
-    if (user.balance < stakeToUse) {
-      setErrorMsg(`Insufficient balance. You need ৳${stakeToUse.toLocaleString()} chips.`);
+    const currentBalance = user.balanceType === "real" ? user.balance : user.demoBalance;
+    if (currentBalance < stakeToUse) {
+      setErrorMsg(`Insufficient ${user.balanceType} balance. You need ৳${stakeToUse.toLocaleString()} chips.`);
       sound.playButtonClick();
       return;
     }
@@ -558,11 +553,6 @@ export const P2PLobby = React.memo<P2PLobbyProps>(({ user, onUpdateWallet, onReq
 
   // Accept / Join Room
   const handleAcceptRoom = async (roomId: string) => {
-    if (isGuestMode) {
-      setErrorMsg("👁️ Guest Mode is active (Read-Only State). Joining rooms is disabled.");
-      return;
-    }
-
     if (!user) {
       onRequireLogin?.();
       return;
@@ -720,7 +710,7 @@ export const P2PLobby = React.memo<P2PLobbyProps>(({ user, onUpdateWallet, onReq
 
         {/* 1v1 Duel Arena Content (100% Zero-Scroll Viewport) */}
         <div className="flex-1 min-h-0 w-full overflow-hidden flex flex-col">
-          <OneOnOneArena user={user} onUpdateWallet={onUpdateWallet} onRequireLogin={onRequireLogin} isGuestMode={isGuestMode} />
+          <OneOnOneArena user={user} onUpdateWallet={onUpdateWallet} onRequireLogin={onRequireLogin} />
         </div>
       </div>
     );

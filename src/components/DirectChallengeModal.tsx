@@ -82,8 +82,9 @@ export const DirectChallengeModal: React.FC<DirectChallengeModalProps> = ({
       return;
     }
 
-    if (currentUser.balance < stakeAmount) {
-      setErrorMsg(`Insufficient balance. You need ৳${stakeAmount.toLocaleString()} chips.`);
+    const currentBalance = currentUser.balanceType === "real" ? currentUser.balance : currentUser.demoBalance;
+    if (currentBalance < stakeAmount) {
+      setErrorMsg(`Insufficient ${currentUser.balanceType} balance. You need ৳${stakeAmount.toLocaleString()} chips.`);
       return;
     }
 

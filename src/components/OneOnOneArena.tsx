@@ -38,7 +38,6 @@ interface OneOnOneArenaProps {
   user: UserWallet | null;
   onUpdateWallet: (updatedUser: UserWallet) => void;
   onRequireLogin?: () => void;
-  isGuestMode?: boolean;
 }
 
 interface DuelState {
@@ -107,7 +106,7 @@ const VOICE_TAUNTS = [
 
 const EMOTES = ["😎", "🤔", "😱", "🔥", "💀", "🤣", "👀", "🎉"];
 
-export const OneOnOneArena: React.FC<OneOnOneArenaProps> = ({ user, onUpdateWallet, onRequireLogin, isGuestMode = false }) => {
+export const OneOnOneArena: React.FC<OneOnOneArenaProps> = ({ user, onUpdateWallet, onRequireLogin }) => {
   const [activeMode, setActiveMode] = useState<"lobby" | "in_match" | "spectate">("lobby");
   const [queueTier, setQueueTier] = useState<"Express" | "Classic" | "VIP">("Classic");
   const [isSearching, setIsSearching] = useState<boolean>(false);
@@ -605,10 +604,6 @@ export const OneOnOneArena: React.FC<OneOnOneArenaProps> = ({ user, onUpdateWall
   // Private Room Creation Handler
   const handleCreatePersonalChallenge = async () => {
     sound.playButtonClick();
-    if (isGuestMode) {
-      alert("👁️ Guest Mode is active (Read-Only State). Room creation is disabled.");
-      return;
-    }
     if (!user) {
       onRequireLogin?.();
       return;
@@ -624,8 +619,9 @@ export const OneOnOneArena: React.FC<OneOnOneArenaProps> = ({ user, onUpdateWall
       return;
     }
     
-    if (user.balance < stakeNum) {
-      setCreateRoomError("Insufficient fund to create room");
+    const currentBalance = user.balanceType === "real" ? user.balance : user.demoBalance;
+    if (currentBalance < stakeNum) {
+      setCreateRoomError(`Insufficient ${user.balanceType} fund to create room`);
       return;
     }
 
@@ -665,10 +661,6 @@ export const OneOnOneArena: React.FC<OneOnOneArenaProps> = ({ user, onUpdateWall
   // Private Room Manual Join Handler
   const handleJoinPersonalChallenge = async () => {
     sound.playButtonClick();
-    if (isGuestMode) {
-      setPersonalJoinError("👁️ Guest Mode is active (Read-Only State). Joining rooms is disabled.");
-      return;
-    }
     if (!user) {
       onRequireLogin?.();
       return;
@@ -814,10 +806,6 @@ export const OneOnOneArena: React.FC<OneOnOneArenaProps> = ({ user, onUpdateWall
   // Handle Find Match Trigger - Instant entry to game table without waiting
   const handleStartMatchmaking = async (tier: "Express" | "Classic" | "VIP") => {
     sound.playButtonClick();
-    if (isGuestMode) {
-      alert("👁️ Guest Mode is active (Read-Only State). Matchmaking is disabled.");
-      return;
-    }
     if (!user) {
       onRequireLogin?.();
       return;
@@ -825,8 +813,9 @@ export const OneOnOneArena: React.FC<OneOnOneArenaProps> = ({ user, onUpdateWall
     setQueueTier(tier);
     const ante = tier === "Express" ? 100 : tier === "Classic" ? 500 : 2000;
 
-    if (user.balance < ante) {
-      alert("Insufficient balance for this stake!");
+    const currentBalance = user.balanceType === "real" ? user.balance : user.demoBalance;
+    if (currentBalance < ante) {
+      alert(`Insufficient ${user.balanceType} balance for this stake!`);
       return;
     }
 
@@ -895,10 +884,6 @@ export const OneOnOneArena: React.FC<OneOnOneArenaProps> = ({ user, onUpdateWall
 
   const handleAcceptRealChallenge = async (roomId: string) => {
     sound.playButtonClick();
-    if (isGuestMode) {
-      alert("👁️ Guest Mode is active (Read-Only State). Joining challenges is disabled.");
-      return;
-    }
     if (!user) {
       onRequireLogin?.();
       return;
@@ -964,10 +949,6 @@ export const OneOnOneArena: React.FC<OneOnOneArenaProps> = ({ user, onUpdateWall
 
   // Handle Poker Betting Action - STATEFUL MULTIPLAYER SERVER COMMAND
   const handleBettingAction = async (action: "CHECK" | "CALL" | "RAISE_2X" | "RAISE_3X" | "ALL_IN" | "FOLD") => {
-    if (isGuestMode) {
-      alert("👁️ Guest Mode is active (Read-Only State). Betting actions are disabled.");
-      return;
-    }
     if (!user) {
       onRequireLogin?.();
       return;
@@ -1103,81 +1084,6 @@ export const OneOnOneArena: React.FC<OneOnOneArenaProps> = ({ user, onUpdateWall
                 </div>
               </div>
             </div>
-          </div>
-
-          {/* Smart 1-Click Quick Matchmaking Tiers (Zero-Scroll Responsive Grid) */}
-          <div className="grid grid-cols-3 gap-1.5 sm:gap-2 shrink-0">
-            {/* 1. Express Tier */}
-            <button
-              onClick={() => handleStartMatchmaking("Express")}
-              disabled={isSearching}
-              className={`p-2 sm:p-2.5 rounded-xl border transition-all text-left relative overflow-hidden group cursor-pointer active:scale-95 ${
-                queueTier === "Express" && isSearching
-                  ? "bg-amber-500/20 border-amber-400 ring-2 ring-amber-400/50 shadow-lg shadow-amber-500/20"
-                  : "bg-neutral-900/90 hover:bg-neutral-850 border-neutral-800 hover:border-amber-500/50 shadow"
-              }`}
-            >
-              <div className="flex items-center justify-between mb-1">
-                <span className="px-1.5 py-0.5 rounded text-[8px] font-black uppercase tracking-wider bg-blue-500/20 text-blue-300 border border-blue-500/30">
-                  ⚡ FAST
-                </span>
-                <span className="text-[10px] text-neutral-400 font-mono font-bold">60s</span>
-              </div>
-              <div className="text-xs sm:text-sm font-black text-white group-hover:text-amber-300 transition-colors">
-                Express
-              </div>
-              <div className="text-amber-400 font-mono font-black text-xs sm:text-sm mt-0.5">
-                {currencySymbol}100 <span className="text-[9px] text-neutral-400 font-normal font-sans">Ante</span>
-              </div>
-            </button>
-
-            {/* 2. Classic Tier */}
-            <button
-              onClick={() => handleStartMatchmaking("Classic")}
-              disabled={isSearching}
-              className={`p-2 sm:p-2.5 rounded-xl border transition-all text-left relative overflow-hidden group cursor-pointer active:scale-95 ${
-                queueTier === "Classic" && isSearching
-                  ? "bg-amber-500/20 border-amber-400 ring-2 ring-amber-400/50 shadow-lg shadow-amber-500/20"
-                  : "bg-neutral-900/90 hover:bg-neutral-850 border-amber-500/40 hover:border-amber-400 shadow-md shadow-amber-500/10"
-              }`}
-            >
-              <div className="flex items-center justify-between mb-1">
-                <span className="px-1.5 py-0.5 rounded text-[8px] font-black uppercase tracking-wider bg-amber-500/20 text-amber-300 border border-amber-500/40">
-                  🔥 POPULAR
-                </span>
-                <span className="text-[10px] text-amber-400 font-mono font-bold">Ranked</span>
-              </div>
-              <div className="text-xs sm:text-sm font-black text-white group-hover:text-amber-300 transition-colors">
-                Classic
-              </div>
-              <div className="text-amber-400 font-mono font-black text-xs sm:text-sm mt-0.5">
-                {currencySymbol}500 <span className="text-[9px] text-neutral-400 font-normal font-sans">Ante</span>
-              </div>
-            </button>
-
-            {/* 3. VIP Tier */}
-            <button
-              onClick={() => handleStartMatchmaking("VIP")}
-              disabled={isSearching}
-              className={`p-2 sm:p-2.5 rounded-xl border transition-all text-left relative overflow-hidden group cursor-pointer active:scale-95 ${
-                queueTier === "VIP" && isSearching
-                  ? "bg-amber-500/20 border-amber-400 ring-2 ring-amber-400/50 shadow-lg shadow-amber-500/20"
-                  : "bg-neutral-900/90 hover:bg-neutral-850 border-purple-500/40 hover:border-purple-400 shadow"
-              }`}
-            >
-              <div className="flex items-center justify-between mb-1">
-                <span className="px-1.5 py-0.5 rounded text-[8px] font-black uppercase tracking-wider bg-purple-500/20 text-purple-300 border border-purple-500/30">
-                  👑 VIP PRO
-                </span>
-                <span className="text-[10px] text-purple-400 font-mono font-bold">High</span>
-              </div>
-              <div className="text-xs sm:text-sm font-black text-white group-hover:text-purple-300 transition-colors">
-                High Roller
-              </div>
-              <div className="text-purple-300 font-mono font-black text-xs sm:text-sm mt-0.5">
-                {currencySymbol}2,000 <span className="text-[9px] text-neutral-400 font-normal font-sans">Ante</span>
-              </div>
-            </button>
           </div>
 
           {/* Compact Private Duel Action Bar */}

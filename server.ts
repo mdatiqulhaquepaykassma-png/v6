@@ -3215,7 +3215,19 @@ memorySweepInterval.unref();
 app.get("/api/rooms", (req, res) => {
   checkExpiredRooms();
   const reqUserId = (req.query.userId as string) || (req.headers["x-user-id"] as string);
-  const sanitized = activeRooms.map((room) => {
+  const user = reqUserId ? mockUsers[reqUserId] : null;
+  const userBalanceType = user?.balanceType || "real";
+
+  const sanitized = activeRooms
+    .filter((room) => {
+      // If user is logged in, show rooms of their balance type
+      // Also always show their own rooms regardless of balance type (optional, but safer)
+      if (user) {
+        return room.balanceType === userBalanceType || room.creatorId === reqUserId;
+      }
+      return room.balanceType === "real"; // Default for guests/unlogged
+    })
+    .map((room) => {
     // Return plaintext password only if the requester is the room creator
     if (reqUserId && room.creatorId === reqUserId) {
       return room;
@@ -3306,11 +3318,18 @@ app.post("/api/rooms/create", requireUser, (req, res) => {
     return res.status(400).json({ error: "Invalid challenge odds ratio. Odds multiplier must be between 1.05x and 50.0x." });
   }
 
-  if (user.balance < numAmount) {
-    return res.status(400).json({ error: `🚫 অপর্যাপ্ত ব্যালেন্স! রুম তৈরি করতে আপনার মূল ব্যালেন্সে অন্তত ৳${numAmount.toLocaleString()} চিপস থাকতে হবে। দয়া করে Add Fund বা ডিপোজিট করুন।` });
+  const isDemo = user.balanceType === "demo";
+  const userBalance = isDemo ? user.demoBalance : user.balance;
+
+  if (userBalance < numAmount) {
+    return res.status(400).json({ error: `🚫 অপর্যাপ্ত ব্যালেন্স! রুম তৈরি করতে আপনার ${isDemo ? "ডেমো" : "মূল"} ব্যালেন্সে অন্তত ৳${numAmount.toLocaleString()} চিপস থাকতে হবে। দয়া করে ${isDemo ? "ব্যালেন্স টগল করুন" : "Add Fund বা ডিপোজিট করুন"}।` });
   }
 
-  user.balance -= numAmount;
+  if (isDemo) {
+    user.demoBalance -= numAmount;
+  } else {
+    user.balance -= numAmount;
+  }
   
   // Log creation transaction
   addTransactionToUser(user, {
@@ -3318,7 +3337,7 @@ app.post("/api/rooms/create", requireUser, (req, res) => {
     type: "withdraw",
     amount: numAmount,
     timestamp: new Date().toISOString(),
-    description: `Created P2P Challenge: Risked ৳${numAmount.toLocaleString()} (Min: ৳${parsedMinStake.toLocaleString()}, Max: ৳${parsedMaxStake.toLocaleString()})`,
+    description: `Created P2P Challenge (${isDemo ? "Demo" : "Real"}): Risked ৳${numAmount.toLocaleString()} (Min: ৳${parsedMinStake.toLocaleString()}, Max: ৳${parsedMaxStake.toLocaleString()})`,
   });
 
   // Side Selector (Dragon/Tiger) - Use player's chosen side or fallback
@@ -3361,6 +3380,7 @@ app.post("/api/rooms/create", requireUser, (req, res) => {
     capacityPercent: 50,
     recentBetActionsCount: isSingleRoundQuickChallenge ? 9 : 3,
     isSingleRoundQuickChallenge: isSingleRoundQuickChallenge === true,
+    balanceType: user.balanceType,
   };
 
   activeRooms.unshift(newRoom);
@@ -3447,12 +3467,19 @@ app.post("/api/rooms/accept", requireUser, (req, res) => {
   }
 
   const acceptor = mockUsers[userId];
-  if (acceptor.balance < requiredAcceptorStake) {
-    return res.status(400).json({ error: `Insufficient balance to accept duel. Required stake: ৳${requiredAcceptorStake.toLocaleString()} chips.` });
+  const isDemo = room.balanceType === "demo";
+  const acceptorBalance = isDemo ? acceptor.demoBalance : acceptor.balance;
+
+  if (acceptorBalance < requiredAcceptorStake) {
+    return res.status(400).json({ error: `🚫 অপর্যাপ্ত ${isDemo ? "ডেমো" : "মূল"} ব্যালেন্স! ডুয়েল রিকোয়েস্ট জয়েন করতে আপনার ব্যালেন্সে অন্তত ৳${requiredAcceptorStake.toLocaleString()} চিপস থাকতে হবে।` });
   }
 
   // Deduct stake from acceptor balance
-  acceptor.balance -= requiredAcceptorStake;
+  if (isDemo) {
+    acceptor.demoBalance -= requiredAcceptorStake;
+  } else {
+    acceptor.balance -= requiredAcceptorStake;
+  }
   room.acceptorId = userId;
   room.acceptorName = username || acceptor.username;
   room.status = "matched";
@@ -3484,24 +3511,32 @@ app.post("/api/rooms/accept", requireUser, (req, res) => {
     } else {
       const creatorWon = (room.winner === "dragon" && room.choice === "dragon") || (room.winner === "tiger" && room.choice === "tiger");
       if (creatorWon && creatorUser) {
-        creatorUser.balance += winnerPayout;
+        if (isDemo) {
+          creatorUser.demoBalance += winnerPayout;
+        } else {
+          creatorUser.balance += winnerPayout;
+        }
         creatorUser.totalWon += (winnerPayout - room.amount);
         addTransactionToUser(creatorUser, {
           id: `tx_quick_win_${Date.now()}`,
           type: "win",
           amount: winnerPayout,
           timestamp: new Date().toISOString(),
-          description: `Won 1v1 Quick Challenge Pot: +৳${winnerPayout.toLocaleString()} (5% House Rake: ৳${companyFee.toLocaleString()})`,
+          description: `Won 1v1 Quick Challenge Pot (${isDemo ? "Demo" : "Real"}): +৳${winnerPayout.toLocaleString()} (5% House Rake: ৳${companyFee.toLocaleString()})`,
         });
       } else {
-        acceptor.balance += winnerPayout;
+        if (isDemo) {
+          acceptor.demoBalance += winnerPayout;
+        } else {
+          acceptor.balance += winnerPayout;
+        }
         acceptor.totalWon += (winnerPayout - requiredAcceptorStake);
         addTransactionToUser(acceptor, {
           id: `tx_quick_win_${Date.now()}`,
           type: "win",
           amount: winnerPayout,
           timestamp: new Date().toISOString(),
-          description: `Won 1v1 Quick Challenge Pot: +৳${winnerPayout.toLocaleString()} (5% House Rake: ৳${companyFee.toLocaleString()})`,
+          description: `Won 1v1 Quick Challenge Pot (${isDemo ? "Demo" : "Real"}): +৳${winnerPayout.toLocaleString()} (5% House Rake: ৳${companyFee.toLocaleString()})`,
         });
       }
       room.status = "completed";
@@ -3767,13 +3802,18 @@ app.post("/api/rooms/cancel", requireUser, (req, res) => {
 
   const user = mockUsers[userId];
   if (user) {
-    user.balance += room.amount;
+    const isDemo = room.balanceType === "demo";
+    if (isDemo) {
+      user.demoBalance += room.amount;
+    } else {
+      user.balance += room.amount;
+    }
     addTransactionToUser(user, {
       id: `tx_room_cancel_${Date.now()}`,
       type: "refund",
       amount: room.amount,
       timestamp: new Date().toISOString(),
-      description: `P2P Challenge Cancelled: ৳${room.amount.toLocaleString()} 100% refunded to wallet`,
+      description: `P2P Challenge Cancelled (${isDemo ? "Demo" : "Real"}): ৳${room.amount.toLocaleString()} 100% refunded to wallet`,
     });
   }
 

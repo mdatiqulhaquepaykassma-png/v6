@@ -192,6 +192,7 @@ export interface P2PRoom {
   capacityPercent?: number;
   recentBetActionsCount?: number;
   isSingleRoundQuickChallenge?: boolean; // 1v1 quick challenge
+  balanceType?: "real" | "demo";
 }
 
 export interface PlayerNote {
