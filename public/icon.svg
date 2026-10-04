@@ -1,0 +1,27 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="512" height="512">
+  <defs>
+    <linearGradient id="bgGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#141a29"/>
+      <stop offset="50%" stop-color="#07090e"/>
+      <stop offset="100%" stop-color="#020305"/>
+    </linearGradient>
+    <linearGradient id="goldGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#fef08a"/>
+      <stop offset="50%" stop-color="#f59e0b"/>
+      <stop offset="100%" stop-color="#b45309"/>
+    </linearGradient>
+    <linearGradient id="redGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#fca5a5"/>
+      <stop offset="50%" stop-color="#ef4444"/>
+      <stop offset="100%" stop-color="#991b1b"/>
+    </linearGradient>
+  </defs>
+  <rect width="512" height="512" rx="128" fill="url(#bgGrad)"/>
+  <rect x="16" y="16" width="480" height="480" rx="112" fill="none" stroke="url(#goldGrad)" stroke-width="12" stroke-opacity="0.6"/>
+  <!-- Gold Shield Badge -->
+  <path d="M256 80 L392 140 V260 C392 350 256 430 256 430 C256 430 120 350 120 260 V140 Z" fill="#090d16" stroke="url(#goldGrad)" stroke-width="16"/>
+  <!-- Dragon Tiger Symbols -->
+  <text x="210" y="270" font-size="110" font-weight="bold" text-anchor="middle" fill="url(#redGrad)">🐉</text>
+  <text x="300" y="270" font-size="110" font-weight="bold" text-anchor="middle" fill="url(#goldGrad)">🐯</text>
+  <text x="256" y="360" font-size="36" font-family="sans-serif" font-weight="900" text-anchor="middle" fill="url(#goldGrad)" letter-spacing="4">APEX</text>
+</svg>

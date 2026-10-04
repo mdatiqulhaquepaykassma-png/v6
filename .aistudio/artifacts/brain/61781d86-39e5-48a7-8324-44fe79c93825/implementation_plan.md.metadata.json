@@ -1,0 +1,6 @@
+{
+  "summary":  "Implementation plan to enable complete guest browsing (view live tables, roadmaps, duels, and leaderboards without logging in) while requiring login for betting, creating/accepting duel challenges, or sending chat messages, with redirection to the dedicated login page.",
+  "updatedAt":  "2026-10-04T08:52:44.621574300Z",
+  "requestFeedback":  true,
+  "userFacing":  true
+}

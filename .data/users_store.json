@@ -1,0 +1,261 @@
+{
+  "user_1791126267310_249": {
+    "userId": "user_1791126267310_249",
+    "username": "Guest_t9nhpk",
+    "balance": 61.224489795918366,
+    "demoBalance": 10000,
+    "balanceType": "real",
+    "lockedBalance": 0,
+    "totalWon": 0,
+    "totalLost": 0,
+    "gamesPlayed": 20,
+    "kycStatus": "none",
+    "transactions": [
+      {
+        "id": "tx_unmatched_1791126915871_t1s82k",
+        "type": "refund",
+        "amount": 0.00816326530612245,
+        "timestamp": "2026-10-04T15:15:15.871Z",
+        "description": "P2P Unmatched Refund [REAL] (TIGER): ৳0.008 returned to wallet (Express Speed Arena Round #1033)"
+      },
+      {
+        "id": "tx_unmatched_1791126915871_xo6lhc",
+        "type": "refund",
+        "amount": 0.00816326530612245,
+        "timestamp": "2026-10-04T15:15:15.871Z",
+        "description": "P2P Unmatched Refund [REAL] (TIGER): ৳0.008 returned to wallet (Express Speed Arena Round #1033)"
+      },
+      {
+        "id": "tx_unmatched_1791126915871_pgmxn",
+        "type": "refund",
+        "amount": 0.00816326530612245,
+        "timestamp": "2026-10-04T15:15:15.871Z",
+        "description": "P2P Unmatched Refund [REAL] (TIGER): ৳0.008 returned to wallet (Express Speed Arena Round #1033)"
+      },
+      {
+        "id": "tx_unmatched_1791126915871_no070m",
+        "type": "refund",
+        "amount": 0.00816326530612245,
+        "timestamp": "2026-10-04T15:15:15.871Z",
+        "description": "P2P Unmatched Refund [REAL] (TIGER): ৳0.008 returned to wallet (Express Speed Arena Round #1033)"
+      },
+      {
+        "id": "tx_unmatched_1791126915871_hn2zjr",
+        "type": "refund",
+        "amount": 0.00816326530612245,
+        "timestamp": "2026-10-04T15:15:15.871Z",
+        "description": "P2P Unmatched Refund [REAL] (TIGER): ৳0.008 returned to wallet (Express Speed Arena Round #1033)"
+      },
+      {
+        "id": "tx_unmatched_1791126915871_wugzdpt",
+        "type": "refund",
+        "amount": 0.00816326530612245,
+        "timestamp": "2026-10-04T15:15:15.871Z",
+        "description": "P2P Unmatched Refund [REAL] (TIGER): ৳0.008 returned to wallet (Express Speed Arena Round #1033)"
+      },
+      {
+        "id": "tx_unmatched_1791126915871_a9imas",
+        "type": "refund",
+        "amount": 0.00816326530612245,
+        "timestamp": "2026-10-04T15:15:15.871Z",
+        "description": "P2P Unmatched Refund [REAL] (TIGER): ৳0.008 returned to wallet (Express Speed Arena Round #1033)"
+      },
+      {
+        "id": "tx_unmatched_1791126915871_8w5d2q",
+        "type": "refund",
+        "amount": 0.00816326530612245,
+        "timestamp": "2026-10-04T15:15:15.871Z",
+        "description": "P2P Unmatched Refund [REAL] (TIGER): ৳0.008 returned to wallet (Express Speed Arena Round #1033)"
+      },
+      {
+        "id": "tx_unmatched_1791126915871_wquaqk",
+        "type": "refund",
+        "amount": 0.00816326530612245,
+        "timestamp": "2026-10-04T15:15:15.871Z",
+        "description": "P2P Unmatched Refund [REAL] (TIGER): ৳0.008 returned to wallet (Express Speed Arena Round #1033)"
+      },
+      {
+        "id": "tx_unmatched_1791126387492_s3c928",
+        "type": "refund",
+        "amount": 0.00816326530612245,
+        "timestamp": "2026-10-04T15:06:27.492Z",
+        "description": "P2P Unmatched Refund [REAL] (DRAGON): ৳0.008 returned to wallet (Express Speed Arena Round #1011)"
+      },
+      {
+        "id": "tx_unmatched_1791126387492_d64qyc",
+        "type": "refund",
+        "amount": 0.00816326530612245,
+        "timestamp": "2026-10-04T15:06:27.492Z",
+        "description": "P2P Unmatched Refund [REAL] (DRAGON): ৳0.008 returned to wallet (Express Speed Arena Round #1011)"
+      },
+      {
+        "id": "tx_unmatched_1791126387492_0kd5ll",
+        "type": "refund",
+        "amount": 0.00816326530612245,
+        "timestamp": "2026-10-04T15:06:27.492Z",
+        "description": "P2P Unmatched Refund [REAL] (DRAGON): ৳0.008 returned to wallet (Express Speed Arena Round #1011)"
+      },
+      {
+        "id": "tx_unmatched_1791126387492_iye7yp",
+        "type": "refund",
+        "amount": 0.00816326530612245,
+        "timestamp": "2026-10-04T15:06:27.492Z",
+        "description": "P2P Unmatched Refund [REAL] (DRAGON): ৳0.008 returned to wallet (Express Speed Arena Round #1011)"
+      },
+      {
+        "id": "tx_unmatched_1791126357477_wqsho7l",
+        "type": "refund",
+        "amount": 0.00816326530612245,
+        "timestamp": "2026-10-04T15:05:57.477Z",
+        "description": "P2P Unmatched Refund [REAL] (TIGER): ৳0.008 returned to wallet (Classic High Table Round #1006)"
+      },
+      {
+        "id": "tx_unmatched_1791126357477_wo5w1h",
+        "type": "refund",
+        "amount": 0.00816326530612245,
+        "timestamp": "2026-10-04T15:05:57.477Z",
+        "description": "P2P Unmatched Refund [REAL] (TIGER): ৳0.008 returned to wallet (Classic High Table Round #1006)"
+      },
+      {
+        "id": "tx_unmatched_1791126357477_w8wv85",
+        "type": "refund",
+        "amount": 0.00816326530612245,
+        "timestamp": "2026-10-04T15:05:57.477Z",
+        "description": "P2P Unmatched Refund [REAL] (TIGER): ৳0.008 returned to wallet (Classic High Table Round #1006)"
+      },
+      {
+        "id": "tx_unmatched_1791126357477_dmht2l",
+        "type": "refund",
+        "amount": 0.00816326530612245,
+        "timestamp": "2026-10-04T15:05:57.477Z",
+        "description": "P2P Unmatched Refund [REAL] (TIGER): ৳0.008 returned to wallet (Classic High Table Round #1006)"
+      },
+      {
+        "id": "tx_unmatched_1791126357477_te0tg",
+        "type": "refund",
+        "amount": 0.00816326530612245,
+        "timestamp": "2026-10-04T15:05:57.477Z",
+        "description": "P2P Unmatched Refund [REAL] (TIGER): ৳0.008 returned to wallet (Classic High Table Round #1006)"
+      },
+      {
+        "id": "tx_unmatched_1791126357477_kbptey",
+        "type": "refund",
+        "amount": 0.00816326530612245,
+        "timestamp": "2026-10-04T15:05:57.477Z",
+        "description": "P2P Unmatched Refund [REAL] (TIGER): ৳0.008 returned to wallet (Classic High Table Round #1006)"
+      },
+      {
+        "id": "tx_unmatched_1791126357477_muk8am",
+        "type": "refund",
+        "amount": 0.00816326530612245,
+        "timestamp": "2026-10-04T15:05:57.477Z",
+        "description": "P2P Unmatched Refund [REAL] (TIGER): ৳0.008 returned to wallet (Classic High Table Round #1006)"
+      },
+      {
+        "id": "tx_dep_1791126277572_570",
+        "type": "deposit",
+        "amount": 20.408163265306122,
+        "timestamp": "2026-10-04T15:04:37.572Z",
+        "description": "Deposit via bKash"
+      },
+      {
+        "id": "tx_dep_1791126275139_955",
+        "type": "deposit",
+        "amount": 40.816326530612244,
+        "timestamp": "2026-10-04T15:04:35.139Z",
+        "description": "Deposit via bKash"
+      },
+      {
+        "id": "tx_1791126267310_demo_init",
+        "type": "faucet",
+        "amount": 10000,
+        "timestamp": "2026-10-04T15:04:27.310Z",
+        "description": "Welcome Demo Starter Chips (৳10,000)"
+      }
+    ],
+    "stats": {
+      "totalHandsPlayed": 20,
+      "handsWon": 0,
+      "handsLost": 0,
+      "handsTied": 0,
+      "winRate": 0,
+      "biggestWin": 0,
+      "tableBreakdown": {
+        "express": {
+          "slug": "express",
+          "tableName": "Express Speed Arena",
+          "handsPlayed": 0,
+          "handsWon": 0,
+          "handsLost": 0,
+          "winRate": 0,
+          "totalWagered": 0,
+          "profit": 0
+        },
+        "classic": {
+          "slug": "classic",
+          "tableName": "Classic High Table",
+          "handsPlayed": 0,
+          "handsWon": 0,
+          "handsLost": 0,
+          "winRate": 0,
+          "totalWagered": 0,
+          "profit": 0
+        },
+        "vip": {
+          "slug": "vip",
+          "tableName": "VIP Diamond Lounge",
+          "handsPlayed": 0,
+          "handsWon": 0,
+          "handsLost": 0,
+          "winRate": 0,
+          "totalWagered": 0,
+          "profit": 0
+        }
+      },
+      "sideBreakdown": {
+        "dragon": {
+          "hands": 0,
+          "wins": 0,
+          "winRate": 0
+        },
+        "tiger": {
+          "hands": 0,
+          "wins": 0,
+          "winRate": 0
+        },
+        "tie": {
+          "hands": 0,
+          "wins": 0,
+          "winRate": 0
+        }
+      },
+      "favoriteTable": "Classic High Table",
+      "favoriteSide": "Dragon"
+    },
+    "cosmetics": {
+      "equippedFrame": "Newcomer",
+      "equippedCardBack": "Classic",
+      "equippedTableTheme": "Midnight",
+      "equippedTitle": "Rookie",
+      "eloRating": 1000,
+      "eloTier": "Bronze",
+      "unlockedFrames": [
+        "Newcomer",
+        "10 Hands"
+      ],
+      "unlockedCardBacks": [
+        "Classic"
+      ],
+      "unlockedThemes": [
+        "Midnight"
+      ],
+      "unlockedTitles": [
+        "Rookie",
+        "Player"
+      ],
+      "unlockedBadges": [],
+      "loginDays": 1,
+      "spectatorFameScore": 0
+    }
+  }
+}

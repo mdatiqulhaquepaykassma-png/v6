@@ -1,0 +1,23 @@
+# Render.com Blueprint Deployment Specification
+services:
+  - type: web
+    name: apex-dragon-tiger
+    runtime: node
+    plan: starter
+    buildCommand: npm install && npm run build
+    startCommand: npm start
+    healthCheckPath: /api/health
+    autoDeploy: true
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: PORT
+        value: 10000
+      - key: DATA_DIR
+        value: /var/data
+      - key: NODE_OPTIONS
+        value: "--max-old-space-size=384"
+    disk:
+      name: apex-game-data
+      mountPath: /var/data
+      sizeGB: 1

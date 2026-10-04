@@ -1,0 +1,123 @@
+<!doctype html>
+<html lang="en" style="background-color: #02050b; color: #ffffff;">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" />
+    <meta name="theme-color" content="#0a0d14" />
+    <meta name="mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+    <meta name="apple-mobile-web-app-title" content="APEX Casino" />
+    <link rel="manifest" href="/manifest.json" />
+    <link rel="icon" type="image/png" href="/app-logo.png" />
+    <link rel="icon" type="image/svg+xml" href="/icon.svg" />
+    <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
+
+    <!-- Resource Preloading & Performance Hints -->
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link rel="modulepreload" href="/src/main.tsx" />
+    <link rel="preload" as="image" href="/app-logo.png" type="image/png" fetchpriority="high" />
+    <link rel="preload" as="image" href="/icon.svg" type="image/svg+xml" fetchpriority="high" />
+    <link rel="preload" as="image" href="/pwa-192x192.png" type="image/png" />
+
+    <!-- High-Resolution Card Texture Sheets Preload -->
+    <link rel="preload" as="image" href="/textures/cards/card-texture-sheet.svg" type="image/svg+xml" fetchpriority="high" />
+    <link rel="preload" as="image" href="/textures/cards/card-back-sheet.svg" type="image/svg+xml" fetchpriority="high" />
+
+    <!-- Critical Casino Audio Assets Preload -->
+    <link rel="preload" as="audio" href="/audio/card-flip.wav" type="audio/wav" />
+    <link rel="preload" as="audio" href="/audio/chip-place.wav" type="audio/wav" />
+    <link rel="preload" as="audio" href="/audio/round-gong.wav" type="audio/wav" />
+    <link rel="preload" as="audio" href="/audio/win-fanfare.wav" type="audio/wav" />
+
+    <!-- Non-blocking Asset Pre-decode & Audio Warmup Script -->
+    <script>
+      (function() {
+        // Pre-decode critical UI & Card texture image assets in browser memory cache
+        [
+          '/app-logo.png',
+          '/icon.svg',
+          '/pwa-192x192.png',
+          '/textures/cards/card-texture-sheet.svg',
+          '/textures/cards/card-back-sheet.svg'
+        ].forEach(function(src) {
+          var img = new Image();
+          img.src = src;
+          if ('decode' in img) {
+            img.decode().catch(function() {});
+          }
+        });
+
+        // Pre-cache critical casino audio elements to eliminate runtime stalls
+        [
+          '/audio/card-flip.wav',
+          '/audio/chip-place.wav',
+          '/audio/round-gong.wav',
+          '/audio/win-fanfare.wav'
+        ].forEach(function(audioSrc) {
+          try {
+            var audio = new Audio();
+            audio.preload = 'auto';
+            audio.src = audioSrc;
+            audio.load();
+          } catch(e) {}
+        });
+      })();
+    </script>
+    <title>APEX CASINO: Dragon Tiger P2P</title>
+    <meta name="description" content="High-stakes Dragon Tiger P2P arena with real-time multiplayer rooms, transparency charter, and secure wallet integration." />
+    <meta property="og:title" content="APEX CASINO: Dragon Tiger P2P" />
+    <meta property="og:description" content="High-stakes Dragon Tiger P2P arena with real-time multiplayer rooms, transparency charter, and secure wallet integration." />
+    <meta property="og:type" content="website" />
+    <meta name="twitter:card" content="summary_large_image" />
+    <style>
+      html, body {
+        background-color: #02050b !important;
+        color: #f5f5f5;
+        margin: 0;
+        padding: 0;
+        width: 100%;
+        min-height: 100%;
+      }
+      #initial-loader {
+        position: fixed;
+        inset: 0;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        background-color: #02050b;
+        color: #ffffff;
+        font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+        z-index: 99999;
+      }
+      .loader-spinner {
+        width: 44px;
+        height: 44px;
+        border: 3px solid rgba(245, 158, 11, 0.2);
+        border-top-color: #f59e0b;
+        border-radius: 50%;
+        animation: spin 0.8s linear infinite;
+      }
+      @keyframes spin {
+        to { transform: rotate(360deg); }
+      }
+    </style>
+  </head>
+  <body style="background-color: #02050b; color: #ffffff;">
+    <div id="root">
+      <div id="initial-loader">
+        <div style="width: 72px; height: 72px; border-radius: 20px; overflow: hidden; border: 2px solid rgba(245, 158, 11, 0.6); box-shadow: 0 0 25px rgba(245, 158, 11, 0.4); margin-bottom: 20px; background-color: #000000; display: flex; align-items: center; justify-content: center;">
+          <img src="/app-logo.png" alt="APEX" onerror="this.onerror=null; this.src='/icon.svg';" style="width: 100%; height: 100%; object-fit: cover;" />
+        </div>
+        <div class="loader-spinner"></div>
+        <div style="margin-top: 16px; font-size: 13px; font-weight: 800; letter-spacing: 2px; color: #f59e0b; text-transform: uppercase;">
+          SANCTUM ARENA
+        </div>
+      </div>
+    </div>
+    <script type="module" src="/src/main.tsx"></script>
+  </body>
+</html>
+
