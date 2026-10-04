@@ -44,6 +44,24 @@ export default function App() {
   // Screen Wake Lock: Keeps display light always ON while on site
   const wakeLock = useWakeLock(true);
 
+  const [isLandscape, setIsLandscape] = useState<boolean>(
+    typeof window !== "undefined" && window.innerWidth > window.innerHeight && window.innerHeight < 600
+  );
+
+  useEffect(() => {
+    const handleResize = () => {
+      const landscape = window.innerWidth > window.innerHeight && window.innerHeight < 600;
+      setIsLandscape(landscape);
+    };
+    window.addEventListener("resize", handleResize);
+    window.addEventListener("orientationchange", handleResize);
+    handleResize();
+    return () => {
+      window.removeEventListener("resize", handleResize);
+      window.removeEventListener("orientationchange", handleResize);
+    };
+  }, []);
+
   const [newVersionAvailable, setNewVersionAvailable] = useState<boolean>(false);
   const [latestServerVersion, setLatestServerVersion] = useState<string | null>(null);
   const [isReloadingVersion, setIsReloadingVersion] = useState<boolean>(false);
@@ -898,6 +916,7 @@ export default function App() {
           onToggleLang={() => setLang((l) => (l === "bn" ? "en" : "bn"))}
           telemetryPlayerCount={telemetry?.totalActivePlayers ?? 1}
           tablePlayerCounts={telemetry?.tableActivePlayers}
+          isLandscape={isLandscape}
         />
 
         {/* Offline Network Status Badge */}
@@ -1191,31 +1210,33 @@ export default function App() {
         />
       )}
 
-      {/* Mobile Fixed Bottom Navigation Bar (Always visible) */}
-      <MobileBottomNav
-        activeTab={activeTab}
-        setActiveTab={setActiveTab}
-        onOpenWallet={() => {
-          if (!user) {
-            setAuthScreenMode("signin");
-          } else {
-            setIsWalletOpen(true);
-          }
-        }}
-        onOpenBetHistory={() => {
-          if (!user) {
-            setAuthScreenMode("signin");
-          } else {
-            setIsBetHistoryOpen(true);
-          }
-        }}
-        onOpenInstallApp={handleTriggerInstallApp}
-        isStandalone={isStandalone}
-        isInstalled={isInstalled}
-        user={user}
-        selectedCurrency={selectedCurrency}
-        onOpenLogin={() => setAuthScreenMode("signin")}
-      />
+      {/* Mobile Fixed Bottom Navigation Bar (Visible in portrait mode, hidden in landscape to maximize real estate) */}
+      {!isLandscape && (
+        <MobileBottomNav
+          activeTab={activeTab}
+          setActiveTab={setActiveTab}
+          onOpenWallet={() => {
+            if (!user) {
+              setAuthScreenMode("signin");
+            } else {
+              setIsWalletOpen(true);
+            }
+          }}
+          onOpenBetHistory={() => {
+            if (!user) {
+              setAuthScreenMode("signin");
+            } else {
+              setIsBetHistoryOpen(true);
+            }
+          }}
+          onOpenInstallApp={handleTriggerInstallApp}
+          isStandalone={isStandalone}
+          isInstalled={isInstalled}
+          user={user}
+          selectedCurrency={selectedCurrency}
+          onOpenLogin={() => setAuthScreenMode("signin")}
+        />
+      )}
 
       {/* Non-intrusive New Version Available Toast */}
       <AnimatePresence>

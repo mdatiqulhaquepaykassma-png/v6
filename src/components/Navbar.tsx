@@ -58,6 +58,7 @@ interface NavbarProps {
     classic: number;
     vip: number;
   };
+  isLandscape?: boolean;
 }
 
 export const Navbar = React.memo<NavbarProps>(({
@@ -75,6 +76,7 @@ export const Navbar = React.memo<NavbarProps>(({
   isStandalone = false,
   selectedCurrency,
   lang = "bn",
+  isLandscape = false,
 }) => {
   const currencyCfg = (selectedCurrency && CURRENCIES[selectedCurrency]) || CURRENCIES.BDT || {
     symbol: "৳",
@@ -83,7 +85,7 @@ export const Navbar = React.memo<NavbarProps>(({
   };
 
   return (
-    <header className="bg-neutral-950/95 backdrop-blur-2xl border-b border-amber-500/20 sticky top-0 z-50 px-2 sm:px-4 lg:px-6 h-12 sm:h-14 flex items-center shadow-[0_4px_25px_rgba(0,0,0,0.85)] w-full select-none m-0">
+    <header className={`bg-neutral-950/95 backdrop-blur-2xl border-b border-amber-500/20 sticky top-0 z-50 px-2 sm:px-4 lg:px-6 ${isLandscape ? "h-9 sm:h-10 py-0.5" : "h-12 sm:h-14"} flex items-center shadow-[0_4px_25px_rgba(0,0,0,0.85)] w-full select-none m-0`}>
       <div className="max-w-[1600px] w-full mx-auto flex items-center justify-between gap-1.5 sm:gap-3">
         
         {/* Zone 1: Brand Logo & Title */}

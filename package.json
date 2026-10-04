@@ -5,7 +5,7 @@
   "type": "module",
   "scripts": {
     "dev": "tsx server.ts",
-    "build": "vite build && npm run build:server",
+    "build": "vite build & esbuild server.ts --bundle --platform=node --format=cjs --packages=external --outfile=server-dist/server.cjs && wait",
     "build:client": "vite build",
     "build:server": "esbuild server.ts --bundle --platform=node --format=cjs --packages=external --outfile=server-dist/server.cjs",
     "start": "node --max-old-space-size=384 server-dist/server.cjs || tsx server.ts",
