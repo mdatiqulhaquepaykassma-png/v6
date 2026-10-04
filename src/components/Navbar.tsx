@@ -10,6 +10,8 @@ import {
   Wallet,
   Plus,
   Activity,
+  Eye,
+  EyeOff,
 } from "lucide-react";
 import { UserWallet } from "../types";
 import { BrandLogo } from "./BrandLogo";
@@ -59,6 +61,8 @@ interface NavbarProps {
     vip: number;
   };
   isLandscape?: boolean;
+  isGuestMode?: boolean;
+  onToggleGuestMode?: () => void;
 }
 
 export const Navbar = React.memo<NavbarProps>(({
@@ -77,6 +81,8 @@ export const Navbar = React.memo<NavbarProps>(({
   selectedCurrency,
   lang = "bn",
   isLandscape = false,
+  isGuestMode = false,
+  onToggleGuestMode,
 }) => {
   const currencyCfg = (selectedCurrency && CURRENCIES[selectedCurrency]) || CURRENCIES.BDT || {
     symbol: "৳",
@@ -157,6 +163,22 @@ export const Navbar = React.memo<NavbarProps>(({
 
         {/* Zone 3: Controls, Wallet & Menu Button with Build Number */}
         <div className="flex items-center gap-1.5 sm:gap-2 shrink-0">
+
+          {/* Guest Mode Toggle Button */}
+          {onToggleGuestMode && (
+            <button
+              onClick={onToggleGuestMode}
+              className={`flex items-center gap-1 px-2.5 py-1 rounded-xl text-xs font-bold transition-all border cursor-pointer ${
+                isGuestMode
+                  ? "bg-purple-600 text-white border-purple-400 shadow-[0_0_15px_rgba(168,85,247,0.5)] animate-pulse"
+                  : "bg-neutral-900 text-neutral-400 border-neutral-800 hover:text-white hover:border-neutral-700"
+              }`}
+              title="Toggle Guest Mode (Read-Only State)"
+            >
+              {isGuestMode ? <EyeOff className="w-3.5 h-3.5 text-purple-200" /> : <Eye className="w-3.5 h-3.5 text-neutral-400" />}
+              <span className="hidden xl:inline text-[10px] font-black">{isGuestMode ? "Guest Mode" : "Guest"}</span>
+            </button>
+          )}
 
           {/* Sound Toggle Button (Hidden on Mobile, available in Menu) */}
           {onToggleSound && (

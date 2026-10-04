@@ -46,9 +46,10 @@ interface P2PLobbyProps {
   user: UserWallet | null;
   onUpdateWallet: (updatedUser: UserWallet) => void;
   onRequireLogin?: () => void;
+  isGuestMode?: boolean;
 }
 
-export const P2PLobby = React.memo<P2PLobbyProps>(({ user, onUpdateWallet, onRequireLogin }) => {
+export const P2PLobby = React.memo<P2PLobbyProps>(({ user, onUpdateWallet, onRequireLogin, isGuestMode = false }) => {
   const [activeP2pTab, setActiveP2pTab] = useState<'arena' | 'custom_lobby'>('arena');
   const [rooms, setRooms] = useState<P2PRoom[]>([]);
   const [isInitialLoading, setIsInitialLoading] = useState<boolean>(true);
@@ -57,6 +58,7 @@ export const P2PLobby = React.memo<P2PLobbyProps>(({ user, onUpdateWallet, onReq
   // Search & Filter state
   const [searchQuery, setSearchQuery] = useState<string>('');
   const [filterMode, setFilterMode] = useState<'all' | 'recommended' | 'low_stakes' | 'high_stakes' | 'fast_action' | 'friends_only'>('recommended');
+  const [stakeFilter, setStakeFilter] = useState<string>('all');
   
   // Custom Odds State
   const [oddsMode, setOddsMode] = useState<'ratio' | 'decimal'>('ratio');
@@ -392,6 +394,19 @@ export const P2PLobby = React.memo<P2PLobbyProps>(({ user, onUpdateWallet, onReq
       );
     }
 
+    // Filter by stake budget range
+    if (stakeFilter !== 'all') {
+      result = result.filter((r) => {
+        const amt = r.acceptorAmount || r.amount;
+        if (stakeFilter === 'micro') return amt <= 100;
+        if (stakeFilter === 'low') return amt > 100 && amt <= 500;
+        if (stakeFilter === 'medium') return amt > 500 && amt <= 2000;
+        if (stakeFilter === 'high') return amt > 2000 && amt <= 10000;
+        if (stakeFilter === 'vip') return amt > 10000;
+        return true;
+      });
+    }
+
     // Category sorting and filtering
     switch (filterMode) {
       case 'recommended':
@@ -416,13 +431,18 @@ export const P2PLobby = React.memo<P2PLobbyProps>(({ user, onUpdateWallet, onReq
     }
 
     return result;
-  }, [scoredRooms, searchQuery, filterMode, user?.username]);
+  }, [scoredRooms, searchQuery, filterMode, stakeFilter, user?.username]);
 
   // Handle Room Creation
   const handleCreateRoom = async (e?: React.FormEvent, isQuick = false) => {
     if (e) e.preventDefault();
     setErrorMsg('');
     setSuccessMsg('');
+
+    if (isGuestMode) {
+      setErrorMsg("👁️ Guest Mode is active (Read-Only State). Room creation is disabled.");
+      return;
+    }
 
     if (!user) {
       onRequireLogin?.();
@@ -537,6 +557,11 @@ export const P2PLobby = React.memo<P2PLobbyProps>(({ user, onUpdateWallet, onReq
 
   // Accept / Join Room
   const handleAcceptRoom = async (roomId: string) => {
+    if (isGuestMode) {
+      setErrorMsg("👁️ Guest Mode is active (Read-Only State). Joining rooms is disabled.");
+      return;
+    }
+
     if (!user) {
       onRequireLogin?.();
       return;
@@ -664,6 +689,42 @@ export const P2PLobby = React.memo<P2PLobbyProps>(({ user, onUpdateWallet, onReq
 
   const currencySymbol = getActiveCurrencySymbol();
 
+  if (activeP2pTab === 'arena') {
+    return (
+      <div className="w-full h-full flex-1 min-h-0 flex flex-col overflow-hidden p-1 sm:p-2 select-none">
+        {/* Top P2P Mode Switcher Bar - Compact Zero-Scroll Header */}
+        <div className="bg-neutral-950/90 border border-white/10 p-1 rounded-xl flex items-center gap-1 shadow-lg shrink-0 mb-1 sm:mb-2 max-w-5xl mx-auto w-full">
+          <button
+            onClick={() => {
+              sound.playButtonClick();
+              setActiveP2pTab('arena');
+            }}
+            className="flex-1 py-1.5 sm:py-2 px-3 rounded-lg font-bold text-xs sm:text-sm flex items-center justify-center gap-1.5 transition-all cursor-pointer bg-amber-500 text-neutral-950 shadow font-black"
+          >
+            <Swords className="w-3.5 h-3.5" />
+            <span>1v1 Duel Arena</span>
+          </button>
+
+          <button
+            onClick={() => {
+              sound.playButtonClick();
+              setActiveP2pTab('custom_lobby');
+            }}
+            className="flex-1 py-1.5 sm:py-2 px-3 rounded-lg font-bold text-xs sm:text-sm flex items-center justify-center gap-1.5 transition-all cursor-pointer text-neutral-400 hover:text-white hover:bg-neutral-900"
+          >
+            <Users className="w-3.5 h-3.5" />
+            <span>Open Challenges</span>
+          </button>
+        </div>
+
+        {/* 1v1 Duel Arena Content (100% Zero-Scroll Viewport) */}
+        <div className="flex-1 min-h-0 w-full overflow-hidden flex flex-col">
+          <OneOnOneArena user={user} onUpdateWallet={onUpdateWallet} onRequireLogin={onRequireLogin} isGuestMode={isGuestMode} />
+        </div>
+      </div>
+    );
+  }
+
   return (
     <PullToRefresh onRefresh={handlePullRefresh} className="w-full max-w-5xl mx-auto space-y-4 pb-8 px-1 sm:px-2">
       
@@ -712,11 +773,7 @@ export const P2PLobby = React.memo<P2PLobbyProps>(({ user, onUpdateWallet, onReq
             sound.playButtonClick();
             setActiveP2pTab('arena');
           }}
-          className={`flex-1 py-2 px-3 rounded-lg font-bold text-xs sm:text-sm flex items-center justify-center gap-1.5 transition-all cursor-pointer ${
-            activeP2pTab === 'arena'
-              ? 'bg-amber-500 text-neutral-950 shadow font-black'
-              : 'text-neutral-400 hover:text-white hover:bg-neutral-900'
-          }`}
+          className="flex-1 py-2 px-3 rounded-lg font-bold text-xs sm:text-sm flex items-center justify-center gap-1.5 transition-all cursor-pointer text-neutral-400 hover:text-white hover:bg-neutral-900"
         >
           <Swords className="w-3.5 h-3.5" />
           <span>1v1 Duel Arena</span>
@@ -727,22 +784,14 @@ export const P2PLobby = React.memo<P2PLobbyProps>(({ user, onUpdateWallet, onReq
             sound.playButtonClick();
             setActiveP2pTab('custom_lobby');
           }}
-          className={`flex-1 py-2 px-3 rounded-lg font-bold text-xs sm:text-sm flex items-center justify-center gap-1.5 transition-all cursor-pointer ${
-            activeP2pTab === 'custom_lobby'
-              ? 'bg-amber-500 text-neutral-950 shadow font-black'
-              : 'text-neutral-400 hover:text-white hover:bg-neutral-900'
-          }`}
+          className="flex-1 py-2 px-3 rounded-lg font-bold text-xs sm:text-sm flex items-center justify-center gap-1.5 transition-all cursor-pointer bg-amber-500 text-neutral-950 shadow font-black"
         >
           <Users className="w-3.5 h-3.5" />
           <span>Open Challenges</span>
         </button>
       </div>
 
-      {activeP2pTab === 'arena' ? (
-        <OneOnOneArena user={user} onUpdateWallet={onUpdateWallet} onRequireLogin={onRequireLogin} />
-      ) : (
-        <>
-          {/* Real P2P 5% Rake Transparency & Quick Actions Header */}
+      {/* Real P2P 5% Rake Transparency & Quick Actions Header */}
           <div className="bg-neutral-950/80 border border-white/10 rounded-2xl p-4 shadow-lg space-y-3">
             <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
               <div>
@@ -1194,6 +1243,28 @@ export const P2PLobby = React.memo<P2PLobbyProps>(({ user, onUpdateWallet, onReq
                   />
                 </div>
 
+                {/* Filter by Stakes Dropdown */}
+                <div className="flex items-center justify-between gap-2 bg-neutral-950 p-2.5 rounded-xl border border-neutral-800">
+                  <span className="text-[11px] font-bold text-neutral-300 flex items-center gap-1.5">
+                    <Coins className="w-3.5 h-3.5 text-amber-400" /> Filter by Stakes:
+                  </span>
+                  <select
+                    value={stakeFilter}
+                    onChange={(e) => {
+                      sound.playButtonClick();
+                      setStakeFilter(e.target.value);
+                    }}
+                    className="bg-neutral-900 border border-neutral-700 text-amber-300 text-xs font-bold rounded-lg px-3 py-1 focus:border-amber-400 focus:outline-none cursor-pointer shadow"
+                  >
+                    <option value="all">All Stakes (সব বাজি)</option>
+                    <option value="micro">Micro (≤ ৳100)</option>
+                    <option value="low">Low (৳101 - ৳500)</option>
+                    <option value="medium">Medium (৳501 - ৳2,000)</option>
+                    <option value="high">High (৳2,001 - ৳10,000)</option>
+                    <option value="vip">VIP High Roller (&gt; ৳10,000)</option>
+                  </select>
+                </div>
+
                 {/* Filter & Sort Pills */}
                 <div className="flex items-center gap-1.5 overflow-x-auto no-scrollbar text-xs pb-1">
                   {[
@@ -1438,8 +1509,6 @@ export const P2PLobby = React.memo<P2PLobbyProps>(({ user, onUpdateWallet, onReq
             </div>
 
           </div>
-        </>
-      )}
 
       {/* QUICK CHALLENGE MODAL (1v1 SINGLE ROUND INSTANT PLAY) */}
       {showQuickChallengeModal && (

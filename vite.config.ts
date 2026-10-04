@@ -138,6 +138,7 @@ export default defineConfig(() => {
       },
     },
     build: {
+      reportCompressedSize: false,
       chunkSizeWarningLimit: 1000,
       target: 'esnext',
       cssCodeSplit: true,

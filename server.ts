@@ -3543,6 +3543,17 @@ app.post("/api/rooms/accept", requireUser, (req, res) => {
 // ============================================================================
 // STATEFUL MULTIPLAYER 1v1 DUEL ENDPOINTS
 // ============================================================================
+app.get("/api/rooms/active-duel", (req, res) => {
+  const userId = (req.query.userId as string) || (req.headers["x-user-id"] as string);
+  if (!userId) return res.json({ activeDuel: null });
+  const ongoing = Object.values(activeDuels).find(
+    (d) => (d.creatorId === userId || d.acceptorId === userId) && d.status !== "SETTLED"
+  );
+  if (!ongoing) return res.json({ activeDuel: null });
+  const room = activeRooms.find((r) => r.id === ongoing.id) || p2pRoomsHistory.find((r) => r.id === ongoing.id);
+  res.json({ activeDuel: ongoing, room: room || null });
+});
+
 app.get("/api/rooms/duel/:roomId", (req, res) => {
   const { roomId } = req.params;
   const { userId } = req.query;

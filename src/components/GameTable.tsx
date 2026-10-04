@@ -168,6 +168,7 @@ interface GameTableProps {
   lang?: "bn" | "en";
   latency?: number;
   onMeasurePing?: () => Promise<number>;
+  isGuestMode?: boolean;
 }
 
 export const GameTable = React.memo<GameTableProps>(({
@@ -186,6 +187,7 @@ export const GameTable = React.memo<GameTableProps>(({
   lang = "bn",
   latency = 24,
   onMeasurePing,
+  isGuestMode = false,
 }) => {
   const [tableSelectorOpen, setTableSelectorOpen] = useState<boolean>(false);
   const [localLatency, setLocalLatency] = useState<number>(latency);
@@ -1163,6 +1165,11 @@ export const GameTable = React.memo<GameTableProps>(({
 
   // Stepper and Chip Selection Handlers - 1-Tap Instant Bet Strike
   const handleSelectSide = (side: string) => {
+    if (isGuestMode) {
+      soundManager.playChip(1.2);
+      showTableToast("👁️ Guest Mode is active (Read-Only State). Betting is disabled.");
+      return;
+    }
     if (!user || !user.userId) {
       soundManager.playChip(1.2);
       setSelectedSide(side);

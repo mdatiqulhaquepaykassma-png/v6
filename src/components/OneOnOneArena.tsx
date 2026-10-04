@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from "react";
+import React, { useState, useEffect, useRef, useCallback } from "react";
 import {
   Swords,
   Shield,
@@ -37,6 +37,7 @@ interface OneOnOneArenaProps {
   user: UserWallet | null;
   onUpdateWallet: (updatedUser: UserWallet) => void;
   onRequireLogin?: () => void;
+  isGuestMode?: boolean;
 }
 
 interface DuelState {
@@ -105,7 +106,7 @@ const VOICE_TAUNTS = [
 
 const EMOTES = ["😎", "🤔", "😱", "🔥", "💀", "🤣", "👀", "🎉"];
 
-export const OneOnOneArena: React.FC<OneOnOneArenaProps> = ({ user, onUpdateWallet, onRequireLogin }) => {
+export const OneOnOneArena: React.FC<OneOnOneArenaProps> = ({ user, onUpdateWallet, onRequireLogin, isGuestMode = false }) => {
   const [activeMode, setActiveMode] = useState<"lobby" | "in_match" | "spectate">("lobby");
   const [queueTier, setQueueTier] = useState<"Express" | "Classic" | "VIP">("Classic");
   const [isSearching, setIsSearching] = useState<boolean>(false);
@@ -198,6 +199,9 @@ export const OneOnOneArena: React.FC<OneOnOneArenaProps> = ({ user, onUpdateWall
   // Audio & Voice States
   const [isMicOn, setIsMicOn] = useState<boolean>(true);
   const [isMutedOpponent, setIsMutedOpponent] = useState<boolean>(false);
+  const [isCommsOpen, setIsCommsOpen] = useState<boolean>(false);
+  const [commsTab, setCommsTab] = useState<"chat" | "taunts">("chat");
+  const [unreadChatCount, setUnreadChatCount] = useState<number>(0);
   
   // Chat & Emotes
   const [chatInput, setChatInput] = useState<string>("");
@@ -222,7 +226,12 @@ export const OneOnOneArena: React.FC<OneOnOneArenaProps> = ({ user, onUpdateWall
                 text: m.text,
                 timestamp: m.time,
               }));
-              setChatLog(mapped);
+              setChatLog((prev) => {
+                if (mapped.length > prev.length && !isCommsOpen) {
+                  setUnreadChatCount((u) => u + (mapped.length - prev.length));
+                }
+                return mapped;
+              });
             }
           }
         }
@@ -234,7 +243,14 @@ export const OneOnOneArena: React.FC<OneOnOneArenaProps> = ({ user, onUpdateWall
     fetchChat();
     const interval = setInterval(fetchChat, 1500);
     return () => clearInterval(interval);
-  }, [user?.username]);
+  }, [user?.username, isCommsOpen]);
+
+  // Auto-scroll chat to bottom when updated
+  useEffect(() => {
+    if (isCommsOpen && chatScrollRef.current) {
+      chatScrollRef.current.scrollTop = chatScrollRef.current.scrollHeight;
+    }
+  }, [chatLog, isCommsOpen]);
 
   // Card Squeezing & Peeling tactile spring hook
   useEffect(() => {
@@ -281,107 +297,101 @@ export const OneOnOneArena: React.FC<OneOnOneArenaProps> = ({ user, onUpdateWall
   }, [isPressingCard, isPeeked, squeezePercent, duel?.matchId, user?.userId]);
 
   // Stateful Multi-User Duel Polling Loop
-  useEffect(() => {
-    if (activeMode !== "in_match" || !duel?.matchId) return;
-    
-    let isMounted = true;
-    const pollState = async () => {
-      try {
-        const res = await fetch(`/api/rooms/duel/${duel.matchId}?userId=${user?.userId || "guest"}`);
-        if (res.ok) {
-          const serverDuel = await res.json();
-          if (!isMounted) return;
+  const pollDuelState = useCallback(async () => {
+    if (!duel?.matchId) return;
+    try {
+      const res = await fetch(`/api/rooms/duel/${duel.matchId}?userId=${user?.userId || "guest"}`);
+      if (res.ok) {
+        const serverDuel = await res.json();
+        setDuel((prev) => {
+          if (!prev) return null;
           
-          setDuel((prev) => {
-            if (!prev) return null;
-            
-            const isCreator = user ? user.userId === serverDuel.creatorId : false;
-            
-            // Map player roles with authentic win rates
-            const dragonPlayer = {
-              userId: serverDuel.creatorRole === "DRAGON" ? serverDuel.creatorId : serverDuel.acceptorId,
-              username: serverDuel.creatorRole === "DRAGON" ? serverDuel.creatorName : serverDuel.acceptorName,
-              eloRank: serverDuel.creatorRole === "DRAGON" ? serverDuel.creatorElo : serverDuel.acceptorElo,
-              winRate: serverDuel.creatorRole === "DRAGON" ? (serverDuel.creatorWinRate ?? 0) : (serverDuel.acceptorWinRate ?? 0),
-              card: serverDuel.creatorRole === "DRAGON" ? serverDuel.creatorCard : serverDuel.acceptorCard,
-              currentBet: serverDuel.creatorRole === "DRAGON" ? serverDuel.creatorBet : serverDuel.acceptorBet,
-              action: serverDuel.creatorRole === "DRAGON" ? serverDuel.creatorAction : serverDuel.acceptorAction,
-              isUser: serverDuel.creatorRole === "DRAGON" ? isCreator : !isCreator,
-            };
-            
-            const tigerPlayer = {
-              userId: serverDuel.creatorRole === "TIGER" ? serverDuel.creatorId : serverDuel.acceptorId,
-              username: serverDuel.creatorRole === "TIGER" ? serverDuel.creatorName : serverDuel.acceptorName,
-              eloRank: serverDuel.creatorRole === "TIGER" ? serverDuel.creatorElo : serverDuel.acceptorElo,
-              winRate: serverDuel.creatorRole === "TIGER" ? (serverDuel.creatorWinRate ?? 0) : (serverDuel.acceptorWinRate ?? 0),
-              card: serverDuel.creatorRole === "TIGER" ? serverDuel.creatorCard : serverDuel.acceptorCard,
-              currentBet: serverDuel.creatorRole === "TIGER" ? serverDuel.creatorBet : serverDuel.acceptorBet,
-              action: serverDuel.creatorRole === "TIGER" ? serverDuel.creatorAction : serverDuel.acceptorAction,
-              isUser: serverDuel.creatorRole === "TIGER" ? isCreator : !isCreator,
-            };
-            
-            // Rich Audio triggers
-            if (prev.status !== serverDuel.status) {
-              if (serverDuel.status === "PEEK_CARDS") {
-                sound.speak("Squeeze and peel your card to peek secretly!");
-              } else if (serverDuel.status === "BETTING") {
-                sound.playChipStack();
-                sound.speak(serverDuel.turnUser === prev.userRole ? "Your turn to act!" : "Opponent's turn to act!");
-              } else if (serverDuel.status === "SHOWDOWN") {
-                sound.playCardFlip();
-                sound.speak("Showdown! Revealing cards...");
-              } else if (serverDuel.status === "SETTLED") {
-                // Instantly sync wallet
-                if (user?.userId) {
-                  fetch(`/api/wallet/${user.userId}`)
-                    .then((r) => r.json())
-                    .then((updated) => onUpdateWallet(updated))
-                    .catch(() => {});
-                }
+          const isCreator = user ? user.userId === serverDuel.creatorId : false;
+          
+          // Map player roles with authentic win rates
+          const dragonPlayer = {
+            userId: serverDuel.creatorRole === "DRAGON" ? serverDuel.creatorId : serverDuel.acceptorId,
+            username: serverDuel.creatorRole === "DRAGON" ? serverDuel.creatorName : serverDuel.acceptorName,
+            eloRank: serverDuel.creatorRole === "DRAGON" ? serverDuel.creatorElo : serverDuel.acceptorElo,
+            winRate: serverDuel.creatorRole === "DRAGON" ? (serverDuel.creatorWinRate ?? 0) : (serverDuel.acceptorWinRate ?? 0),
+            card: serverDuel.creatorRole === "DRAGON" ? serverDuel.creatorCard : serverDuel.acceptorCard,
+            currentBet: serverDuel.creatorRole === "DRAGON" ? serverDuel.creatorBet : serverDuel.acceptorBet,
+            action: serverDuel.creatorRole === "DRAGON" ? serverDuel.creatorAction : serverDuel.acceptorAction,
+            isUser: serverDuel.creatorRole === "DRAGON" ? isCreator : !isCreator,
+          };
+          
+          const tigerPlayer = {
+            userId: serverDuel.creatorRole === "TIGER" ? serverDuel.creatorId : serverDuel.acceptorId,
+            username: serverDuel.creatorRole === "TIGER" ? serverDuel.creatorName : serverDuel.acceptorName,
+            eloRank: serverDuel.creatorRole === "TIGER" ? serverDuel.creatorElo : serverDuel.acceptorElo,
+            winRate: serverDuel.creatorRole === "TIGER" ? (serverDuel.creatorWinRate ?? 0) : (serverDuel.acceptorWinRate ?? 0),
+            card: serverDuel.creatorRole === "TIGER" ? serverDuel.creatorCard : serverDuel.acceptorCard,
+            currentBet: serverDuel.creatorRole === "TIGER" ? serverDuel.creatorBet : serverDuel.acceptorBet,
+            action: serverDuel.creatorRole === "TIGER" ? serverDuel.creatorAction : serverDuel.acceptorAction,
+            isUser: serverDuel.creatorRole === "TIGER" ? isCreator : !isCreator,
+          };
+          
+          // Rich Audio triggers
+          if (prev.status !== serverDuel.status) {
+            if (serverDuel.status === "PEEK_CARDS") {
+              sound.speak("Squeeze and peel your card to peek secretly!");
+            } else if (serverDuel.status === "BETTING") {
+              sound.playChipStack();
+              sound.speak(serverDuel.turnUser === prev.userRole ? "Your turn to act!" : "Opponent's turn to act!");
+            } else if (serverDuel.status === "SHOWDOWN") {
+              sound.playCardFlip();
+              sound.speak("Showdown! Revealing cards...");
+            } else if (serverDuel.status === "SETTLED") {
+              // Instantly sync wallet
+              if (user?.userId) {
+                fetch(`/api/wallet/${user.userId}`)
+                  .then((r) => r.json())
+                  .then((updated) => onUpdateWallet(updated))
+                  .catch(() => {});
               }
             }
-            
-            // Track opponent actions to play chip clink
-            const oppRole = prev.userRole === "DRAGON" ? "TIGER" : "DRAGON";
-            const prevOppAction = oppRole === "DRAGON" ? prev.dragonPlayer.action : prev.tigerPlayer.action;
-            const nextOppAction = oppRole === "DRAGON" ? dragonPlayer.action : tigerPlayer.action;
-            
-            if (prevOppAction !== nextOppAction && nextOppAction) {
-              sound.playChip();
-            }
-            
-            return {
-              ...prev,
-              status: serverDuel.status,
-              dragonPlayer,
-              tigerPlayer,
-              userCard: prev.userRole === "DRAGON" ? serverDuel.creatorCard : serverDuel.acceptorCard,
-              opponentCard: prev.userRole === "DRAGON" ? serverDuel.acceptorCard : serverDuel.creatorCard,
-              currentPot: serverDuel.currentPot,
-              currentRaise: serverDuel.currentRaise,
-              bettingRound: serverDuel.bettingRound,
-              turnUser: serverDuel.turnUser,
-              secondsRemaining: serverDuel.secondsRemaining,
-              raisesCount: serverDuel.raisesCount,
-              spectatorsCount: typeof serverDuel.spectatorsCount === "number" ? serverDuel.spectatorsCount : 0,
-              winnerRole: serverDuel.winnerRole,
-              foldWinnerRole: serverDuel.foldWinnerRole,
-              netProfit: prev.userRole === "DRAGON" ? serverDuel.netProfitCreator : serverDuel.netProfitAcceptor,
-            };
-          });
-        }
-      } catch (e) {
-        console.error("Duel poll error:", e);
+          }
+          
+          // Track opponent actions to play chip clink
+          const oppRole = prev.userRole === "DRAGON" ? "TIGER" : "DRAGON";
+          const prevOppAction = oppRole === "DRAGON" ? prev.dragonPlayer.action : prev.tigerPlayer.action;
+          const nextOppAction = oppRole === "DRAGON" ? dragonPlayer.action : tigerPlayer.action;
+          
+          if (prevOppAction !== nextOppAction && nextOppAction) {
+            sound.playChip();
+          }
+          
+          return {
+            ...prev,
+            status: serverDuel.status,
+            dragonPlayer,
+            tigerPlayer,
+            userCard: (isCreator ? serverDuel.creatorCard : serverDuel.acceptorCard) || prev.userCard,
+            opponentCard: (isCreator ? serverDuel.acceptorCard : serverDuel.creatorCard) || prev.opponentCard,
+            currentPot: serverDuel.currentPot,
+            currentRaise: serverDuel.currentRaise,
+            bettingRound: serverDuel.bettingRound,
+            turnUser: serverDuel.turnUser,
+            secondsRemaining: serverDuel.secondsRemaining,
+            raisesCount: serverDuel.raisesCount,
+            spectatorsCount: typeof serverDuel.spectatorsCount === "number" ? serverDuel.spectatorsCount : 0,
+            winnerRole: serverDuel.winnerRole,
+            foldWinnerRole: serverDuel.foldWinnerRole,
+            netProfit: isCreator ? serverDuel.netProfitCreator : serverDuel.netProfitAcceptor,
+          };
+        });
       }
-    };
-    
-    pollState();
-    const interval = setInterval(pollState, 1000);
-    return () => {
-      isMounted = false;
-      clearInterval(interval);
-    };
-  }, [activeMode, duel?.matchId, user?.userId]);
+    } catch (e) {
+      console.error("Duel poll error:", e);
+    }
+  }, [duel?.matchId, user?.userId, onUpdateWallet]);
+
+  useEffect(() => {
+    if (activeMode !== "in_match" || !duel?.matchId) return;
+    pollDuelState();
+    const interval = setInterval(pollDuelState, 1000);
+    return () => clearInterval(interval);
+  }, [activeMode, duel?.matchId, pollDuelState]);
 
   // Real-time Duel WebSocket Spectator Connection & Authentic Opponent Chat
   useEffect(() => {
@@ -414,6 +424,15 @@ export const OneOnOneArena: React.FC<OneOnOneArenaProps> = ({ user, onUpdateWall
             setDuel((prev) =>
               prev ? { ...prev, spectatorsCount: data.spectatorsCount || 0 } : null
             );
+          } else if (data.type === "DUEL_TICK" && data.roomId === duel.matchId) {
+            setDuel((prev) =>
+              prev ? { ...prev, secondsRemaining: data.secondsRemaining } : null
+            );
+          } else if (
+            (data.type === "DUEL_ACTION" || data.type === "DUEL_STATE_CHANGE") &&
+            data.roomId === duel.matchId
+          ) {
+            pollDuelState();
           } else if (data.type === "CHAT_MESSAGE") {
             const oppRole = duel.userRole === "DRAGON" ? "TIGER" : "DRAGON";
             const oppName = oppRole === "DRAGON" ? duel.dragonPlayer.username : duel.tigerPlayer.username;
@@ -443,7 +462,7 @@ export const OneOnOneArena: React.FC<OneOnOneArenaProps> = ({ user, onUpdateWall
         } catch {}
       }
     };
-  }, [activeMode, duel?.matchId, duel?.userRole, duel?.dragonPlayer.username, duel?.tigerPlayer.username, user?.userId]);
+  }, [activeMode, duel?.matchId, duel?.userRole, duel?.dragonPlayer.username, duel?.tigerPlayer.username, user?.userId, pollDuelState]);
 
   // Fetch open rooms for custom duel challenges
   const fetchRooms = async () => {
@@ -452,17 +471,50 @@ export const OneOnOneArena: React.FC<OneOnOneArenaProps> = ({ user, onUpdateWall
       if (res.ok) {
         const data = await res.json();
         setRooms(data);
+
+        // Auto-transition creator into matched duel
+        if (activeMode !== "in_match" && user?.userId && Array.isArray(data)) {
+          const matchedRoom = data.find((r: any) =>
+            r.creatorId === user.userId && (r.status === "matched" || (r.status === "completed" && r.isSingleRoundQuickChallenge))
+          );
+          if (matchedRoom) {
+            setCreatedRoomId(null);
+            setPersonalCreatedRoom(null);
+            setIsSearching(false);
+            startInteractiveDuel(matchedRoom, true);
+          }
+        }
       }
     } catch (e) {
       console.error(e);
     }
   };
 
+  // Reconnect to active ongoing duel if user refreshes or returns
+  useEffect(() => {
+    if (!user?.userId || activeMode === "in_match") return;
+    let isMounted = true;
+    const checkActiveDuel = async () => {
+      try {
+        const res = await fetch(`/api/rooms/active-duel?userId=${encodeURIComponent(user.userId)}`);
+        if (res.ok) {
+          const data = await res.json();
+          if (isMounted && data?.activeDuel && data.activeDuel.status !== "SETTLED") {
+            const isCreator = user.userId === data.activeDuel.creatorId;
+            startInteractiveDuel(data.room || data.activeDuel, isCreator);
+          }
+        }
+      } catch {}
+    };
+    checkActiveDuel();
+    return () => { isMounted = false; };
+  }, [user?.userId]);
+
   useEffect(() => {
     fetchRooms();
     const interval = setInterval(fetchRooms, 3000);
     return () => clearInterval(interval);
-  }, []);
+  }, [user?.userId]);
 
   useEffect(() => {
     if (chatScrollRef.current) {
@@ -533,6 +585,10 @@ export const OneOnOneArena: React.FC<OneOnOneArenaProps> = ({ user, onUpdateWall
   // Private Room Creation Handler
   const handleCreatePersonalChallenge = async () => {
     sound.playButtonClick();
+    if (isGuestMode) {
+      alert("👁️ Guest Mode is active (Read-Only State). Room creation is disabled.");
+      return;
+    }
     if (!user) {
       onRequireLogin?.();
       return;
@@ -574,6 +630,7 @@ export const OneOnOneArena: React.FC<OneOnOneArenaProps> = ({ user, onUpdateWall
       if (data.success && data.room) {
         setPersonalCreatedRoom(data.room);
         setCreatedRoomId(data.room.id); // Enable polling
+        setIsSearching(true);
         onUpdateWallet(data.user);
         fetchRooms();
       } else {
@@ -588,6 +645,10 @@ export const OneOnOneArena: React.FC<OneOnOneArenaProps> = ({ user, onUpdateWall
   // Private Room Manual Join Handler
   const handleJoinPersonalChallenge = async () => {
     sound.playButtonClick();
+    if (isGuestMode) {
+      setPersonalJoinError("👁️ Guest Mode is active (Read-Only State). Joining rooms is disabled.");
+      return;
+    }
     if (!user) {
       onRequireLogin?.();
       return;
@@ -685,7 +746,7 @@ export const OneOnOneArena: React.FC<OneOnOneArenaProps> = ({ user, onUpdateWall
       secondsRemaining: 60,
       raisesCount: 0,
       spectatorsCount: typeof match.spectatorsCount === "number" ? match.spectatorsCount : 0,
-      winnerRole: match.winner.toUpperCase() as "DRAGON" | "TIGER" | "TIE",
+      winnerRole: (match.winner ? match.winner.toUpperCase() : "DRAGON") as "DRAGON" | "TIGER" | "TIE",
     };
 
     setDuel(initialDuel);
@@ -733,6 +794,10 @@ export const OneOnOneArena: React.FC<OneOnOneArenaProps> = ({ user, onUpdateWall
   // Handle Find Match Trigger - Instant entry to game table without waiting
   const handleStartMatchmaking = async (tier: "Express" | "Classic" | "VIP") => {
     sound.playButtonClick();
+    if (isGuestMode) {
+      alert("👁️ Guest Mode is active (Read-Only State). Matchmaking is disabled.");
+      return;
+    }
     if (!user) {
       onRequireLogin?.();
       return;
@@ -810,6 +875,10 @@ export const OneOnOneArena: React.FC<OneOnOneArenaProps> = ({ user, onUpdateWall
 
   const handleAcceptRealChallenge = async (roomId: string) => {
     sound.playButtonClick();
+    if (isGuestMode) {
+      alert("👁️ Guest Mode is active (Read-Only State). Joining challenges is disabled.");
+      return;
+    }
     if (!user) {
       onRequireLogin?.();
       return;
@@ -834,9 +903,12 @@ export const OneOnOneArena: React.FC<OneOnOneArenaProps> = ({ user, onUpdateWall
           .then((r) => r.json())
           .then((updated) => onUpdateWallet(updated))
           .catch(() => {});
+      } else {
+        alert(data.error || "রুম এ জয়েন করতে ব্যর্থ হয়েছে!");
       }
     } catch (e) {
       console.error(e);
+      alert("নেটওয়ার্ক সংযোগ ত্রুটি!");
     }
   };
 
@@ -872,6 +944,10 @@ export const OneOnOneArena: React.FC<OneOnOneArenaProps> = ({ user, onUpdateWall
 
   // Handle Poker Betting Action - STATEFUL MULTIPLAYER SERVER COMMAND
   const handleBettingAction = async (action: "CHECK" | "CALL" | "RAISE_2X" | "RAISE_3X" | "ALL_IN" | "FOLD") => {
+    if (isGuestMode) {
+      alert("👁️ Guest Mode is active (Read-Only State). Betting actions are disabled.");
+      return;
+    }
     if (!user) {
       onRequireLogin?.();
       return;
@@ -968,37 +1044,37 @@ export const OneOnOneArena: React.FC<OneOnOneArenaProps> = ({ user, onUpdateWall
   const currencySymbol = getActiveCurrencySymbol();
 
   return (
-    <div className="w-full max-w-5xl mx-auto space-y-3 pb-8">
+    <div className="w-full h-full flex-1 min-h-0 flex flex-col overflow-hidden max-w-5xl mx-auto relative select-none">
       {/* Lobby View & Queue Selection */}
       {activeMode === "lobby" && (
-        <div className="space-y-3 sm:space-y-4">
+        <div className="w-full h-full flex-1 min-h-0 flex flex-col overflow-hidden space-y-2 p-1 sm:p-2">
           {/* Ultra-Compact Clean Hero Banner */}
-          <div className="relative rounded-xl bg-gradient-to-r from-neutral-950 via-neutral-900 to-neutral-950 border border-amber-500/25 p-3 sm:p-4 shadow-lg overflow-hidden">
-            <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 relative z-10">
+          <div className="relative rounded-xl bg-gradient-to-r from-neutral-950 via-neutral-900 to-neutral-950 border border-amber-500/25 p-2.5 sm:p-3 shadow-md overflow-hidden shrink-0">
+            <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2.5 relative z-10">
               <div className="space-y-0.5 text-left">
                 <div className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full bg-amber-500/10 border border-amber-500/30 text-amber-300 text-[10px] font-bold">
                   <Swords className="w-3 h-3 text-amber-400" />
                   <span>1v1 DUEL ARENA</span>
                 </div>
-                <h1 className="text-base sm:text-xl font-black text-white tracking-tight">
+                <h1 className="text-sm sm:text-base font-black text-white tracking-tight">
                   Head-to-Head Card Battle
                 </h1>
-                <p className="text-[11px] sm:text-xs text-neutral-400">
+                <p className="text-[10px] sm:text-xs text-neutral-400">
                   Real-time turn-based card duel. Higher card takes 95% of pot.
                 </p>
               </div>
 
               {/* Player Stats Chips */}
               <div className="flex items-center gap-1.5 bg-black/60 border border-white/10 p-1.5 rounded-lg backdrop-blur-md self-stretch sm:self-auto justify-around sm:justify-start">
-                <div className="text-center px-2.5">
+                <div className="text-center px-2">
                   <div className="text-[8px] uppercase text-neutral-500 font-bold">Rating</div>
                   <div className="text-xs sm:text-sm font-black text-amber-400 flex items-center justify-center gap-1">
                     <Trophy className="w-3 h-3 text-amber-400" />
                     <span>{user?.cosmetics?.eloRating || 1250}</span>
                   </div>
                 </div>
-                <div className="w-px h-5 bg-white/10" />
-                <div className="text-center px-2.5">
+                <div className="w-px h-4 bg-white/10" />
+                <div className="text-center px-2">
                   <div className="text-[8px] uppercase text-neutral-500 font-bold">Played</div>
                   <div className="text-xs sm:text-sm font-black text-emerald-400 flex items-center justify-center gap-1">
                     <Swords className="w-3 h-3 text-emerald-400" />
@@ -1009,91 +1085,13 @@ export const OneOnOneArena: React.FC<OneOnOneArenaProps> = ({ user, onUpdateWall
             </div>
           </div>
 
-          {/* Compact High-Density Matchmaking Queue Cards */}
-          <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5 sm:gap-3">
-            {/* Express Queue */}
-            <div className="bg-neutral-900/90 border border-white/10 hover:border-amber-500/40 rounded-xl p-3 sm:p-3.5 shadow transition-all flex flex-col justify-between space-y-2.5">
-              <div className="space-y-0.5">
-                <div className="flex items-center justify-between">
-                  <span className="text-xs font-black uppercase text-amber-400 flex items-center gap-1">
-                    <Zap className="w-3.5 h-3.5 text-amber-400" /> Express
-                  </span>
-                  <span className="text-[10px] sm:text-[11px] font-mono font-bold bg-amber-500/15 text-amber-300 px-2 py-0.5 rounded-md border border-amber-500/25">
-                    {currencySymbol}100 Ante
-                  </span>
-                </div>
-                <p className="text-[10.5px] text-neutral-400">Fast 10s decision rounds</p>
-              </div>
-
-              <button
-                onClick={() => handleStartMatchmaking("Express")}
-                disabled={isSearching}
-                className="w-full py-2 sm:py-2.5 bg-neutral-800 hover:bg-neutral-700 text-amber-300 hover:text-white font-black rounded-lg border border-amber-500/30 hover:border-amber-400 active:scale-95 transition-all flex items-center justify-center gap-1.5 text-xs cursor-pointer shadow"
-              >
-                <Swords className="w-3 h-3 text-amber-400" />
-                <span>Play Express ({currencySymbol}100)</span>
-              </button>
-            </div>
-
-            {/* Classic Queue */}
-            <div className="bg-neutral-900/95 border-2 border-amber-500/60 hover:border-amber-400 rounded-xl p-3 sm:p-3.5 shadow transition-all flex flex-col justify-between space-y-2.5 relative overflow-hidden">
-              <div className="absolute top-0 right-0 bg-amber-500 text-neutral-950 text-[8.5px] font-black uppercase px-2 py-0.5 rounded-bl-lg">
-                Popular
-              </div>
-              <div className="space-y-0.5">
-                <div className="flex items-center justify-between">
-                  <span className="text-xs font-black uppercase text-amber-300 flex items-center gap-1">
-                    <Shield className="w-3.5 h-3.5 text-amber-400" /> Classic
-                  </span>
-                  <span className="text-[10px] sm:text-[11px] font-mono font-bold bg-amber-500/20 text-amber-300 px-2 py-0.5 rounded-md border border-amber-500/30">
-                    {currencySymbol}500 Ante
-                  </span>
-                </div>
-                <p className="text-[10.5px] text-neutral-400">Standard 15s strategic turns</p>
-              </div>
-
-              <button
-                onClick={() => handleStartMatchmaking("Classic")}
-                disabled={isSearching}
-                className="w-full py-2 sm:py-2.5 bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-400 hover:to-amber-500 text-neutral-950 font-black rounded-lg shadow-md active:scale-95 transition-all flex items-center justify-center gap-1.5 text-xs cursor-pointer"
-              >
-                <Swords className="w-3 h-3" />
-                <span>Play Classic ({currencySymbol}500)</span>
-              </button>
-            </div>
-
-            {/* VIP Queue */}
-            <div className="bg-neutral-900/90 border border-white/10 hover:border-amber-500/40 rounded-xl p-3 sm:p-3.5 shadow transition-all flex flex-col justify-between space-y-2.5">
-              <div className="space-y-0.5">
-                <div className="flex items-center justify-between">
-                  <span className="text-xs font-black uppercase text-amber-400 flex items-center gap-1">
-                    <Crown className="w-3.5 h-3.5 text-amber-400" /> VIP Lounge
-                  </span>
-                  <span className="text-[10px] sm:text-[11px] font-mono font-bold bg-amber-500/15 text-amber-300 px-2 py-0.5 rounded-md border border-amber-500/25">
-                    {currencySymbol}2,000 Ante
-                  </span>
-                </div>
-                <p className="text-[10.5px] text-neutral-400">High-stakes diamond battle</p>
-              </div>
-
-              <button
-                onClick={() => handleStartMatchmaking("VIP")}
-                disabled={isSearching}
-                className="w-full py-2 sm:py-2.5 bg-neutral-800 hover:bg-neutral-700 text-amber-300 hover:text-white font-black rounded-lg border border-amber-500/30 hover:border-amber-400 active:scale-95 transition-all flex items-center justify-center gap-1.5 text-xs cursor-pointer shadow"
-              >
-                <Crown className="w-3 h-3 text-amber-400" />
-                <span>Play VIP ({currencySymbol}2,000)</span>
-              </button>
-            </div>
-          </div>
-
           {/* Compact Private Duel Action Bar */}
-          <div className="bg-neutral-950/80 border border-white/10 rounded-xl p-2.5 sm:p-3 flex flex-col sm:flex-row items-center justify-between gap-2.5 shadow">
+          <div className="bg-neutral-950/80 border border-white/10 rounded-xl p-2 sm:p-2.5 flex flex-col sm:flex-row items-center justify-between gap-2 shadow shrink-0">
             <div className="flex items-center gap-2 text-center sm:text-left">
               <Shield className="w-4 h-4 text-amber-400 shrink-0" />
               <div>
                 <span className="text-xs font-bold text-white block">Private Duel</span>
-                <span className="text-[10.5px] text-neutral-500">Play with friends using custom room code</span>
+                <span className="text-[10px] text-neutral-500">Play with friends using custom room code</span>
               </div>
             </div>
             
@@ -1104,7 +1102,7 @@ export const OneOnOneArena: React.FC<OneOnOneArenaProps> = ({ user, onUpdateWall
                   setShowCreatePersonal(true);
                   setPersonalCreatedRoom(null);
                 }}
-                className="flex-1 sm:flex-none px-3 py-1.5 sm:py-2 bg-amber-500 hover:bg-amber-400 text-neutral-950 font-bold text-xs rounded-lg transition-all flex items-center justify-center gap-1.5 shadow active:scale-95 cursor-pointer"
+                className="flex-1 sm:flex-none px-3 py-1.5 bg-amber-500 hover:bg-amber-400 text-neutral-950 font-bold text-xs rounded-lg transition-all flex items-center justify-center gap-1.5 shadow active:scale-95 cursor-pointer"
               >
                 <Plus className="w-3 h-3" />
                 <span>Create Room</span>
@@ -1116,7 +1114,7 @@ export const OneOnOneArena: React.FC<OneOnOneArenaProps> = ({ user, onUpdateWall
                   setShowJoinPersonal(true);
                   setPersonalJoinError("");
                 }}
-                className="flex-1 sm:flex-none px-3 py-1.5 sm:py-2 bg-neutral-900 hover:bg-neutral-800 text-neutral-300 border border-neutral-700 hover:border-amber-400/50 font-bold text-xs rounded-lg transition-all flex items-center justify-center gap-1.5 active:scale-95 cursor-pointer"
+                className="flex-1 sm:flex-none px-3 py-1.5 bg-neutral-900 hover:bg-neutral-800 text-neutral-300 border border-neutral-700 hover:border-amber-400/50 font-bold text-xs rounded-lg transition-all flex items-center justify-center gap-1.5 active:scale-95 cursor-pointer"
               >
                 <Swords className="w-3 h-3 text-amber-400" />
                 <span>Join with Code</span>
@@ -1126,15 +1124,15 @@ export const OneOnOneArena: React.FC<OneOnOneArenaProps> = ({ user, onUpdateWall
 
           {/* Searching Modal Overlay */}
           {isSearching && (
-            <div className="p-5 bg-neutral-900/95 border-2 border-amber-500/60 rounded-xl text-center space-y-3 backdrop-blur-md shadow-2xl animate-pulse">
-              <div className="inline-flex w-12 h-12 rounded-full bg-amber-500/20 border border-amber-400 items-center justify-center text-amber-400">
-                <Swords className="w-6 h-6 animate-spin" />
+            <div className="p-3 bg-neutral-900/95 border border-amber-500/60 rounded-xl text-center space-y-2 backdrop-blur-md shadow-xl animate-pulse shrink-0">
+              <div className="inline-flex w-8 h-8 rounded-full bg-amber-500/20 border border-amber-400 items-center justify-center text-amber-400">
+                <Swords className="w-4 h-4 animate-spin" />
               </div>
               <div>
-                <h3 className="text-base font-black text-amber-300">
+                <h3 className="text-sm font-black text-amber-300">
                   {personalCreatedRoom ? "Waiting for Opponent..." : "Searching for Match..."}
                 </h3>
-                <p className="text-xs text-neutral-400 mt-0.5">
+                <p className="text-[11px] text-neutral-400 mt-0.5">
                   {personalCreatedRoom 
                     ? `Room ID: ${personalCreatedRoom.id} · Password: ${personalCreatedRoom.password || "None"}`
                     : `Matching ${queueTier} tier (${searchTimer}s)`
@@ -1143,19 +1141,19 @@ export const OneOnOneArena: React.FC<OneOnOneArenaProps> = ({ user, onUpdateWall
               </div>
               <button
                 onClick={handleCancelMatchmaking}
-                className="px-4 py-1.5 bg-neutral-800 hover:bg-neutral-700 text-neutral-300 text-xs font-bold rounded-lg border border-neutral-700 hover:border-amber-400 transition-colors cursor-pointer"
+                className="px-3 py-1 bg-neutral-800 hover:bg-neutral-700 text-neutral-300 text-xs font-bold rounded-lg border border-neutral-700 hover:border-amber-400 transition-colors cursor-pointer"
               >
                 Cancel Matchmaking
               </button>
             </div>
           )}
 
-          {/* Tab Selection for Active Rooms and History */}
-          <div className="bg-neutral-900 border border-neutral-800 rounded-2xl p-4 space-y-4 shadow-xl">
-            <div className="flex flex-col sm:flex-row items-center justify-between gap-3 border-b border-neutral-800 pb-3">
-              <div className="flex items-center gap-2">
-                <Users className="w-5 h-5 text-amber-400" />
-                <h2 className="text-base sm:text-lg font-bold text-white font-black">১v১ চ্যালেঞ্জ কন্ট্রোল প্যানেল (Lobby Control)</h2>
+          {/* Tab Selection for Active Rooms and History (Contained Zero-Scroll List) */}
+          <div className="bg-neutral-900 border border-neutral-800 rounded-xl p-2.5 sm:p-3 shadow-xl flex-1 min-h-0 flex flex-col overflow-hidden">
+            <div className="flex flex-col sm:flex-row items-center justify-between gap-2 border-b border-neutral-800 pb-2 shrink-0">
+              <div className="flex items-center gap-1.5">
+                <Users className="w-4 h-4 text-amber-400" />
+                <h2 className="text-xs sm:text-sm font-bold text-white font-black">১v১ চ্যালেঞ্জ কন্ট্রোল প্যানেল (Lobby Control)</h2>
               </div>
               <div className="flex gap-2 w-full sm:w-auto">
                 <button
@@ -1164,7 +1162,7 @@ export const OneOnOneArena: React.FC<OneOnOneArenaProps> = ({ user, onUpdateWall
                     sound.playButtonClick();
                     setLobbyTab("rooms");
                   }}
-                  className={`flex-1 sm:flex-none px-4 py-2 text-xs font-black rounded-xl border transition-all ${
+                  className={`flex-1 sm:flex-none px-3 py-1.5 text-xs font-black rounded-lg border transition-all ${
                     lobbyTab === "rooms"
                       ? "bg-amber-500 text-neutral-950 border-amber-400 shadow-md"
                       : "bg-neutral-950 text-neutral-400 border-neutral-850 hover:text-white"
@@ -1178,7 +1176,7 @@ export const OneOnOneArena: React.FC<OneOnOneArenaProps> = ({ user, onUpdateWall
                     sound.playButtonClick();
                     setLobbyTab("history");
                   }}
-                  className={`flex-1 sm:flex-none px-4 py-2 text-xs font-black rounded-xl border transition-all ${
+                  className={`flex-1 sm:flex-none px-3 py-1.5 text-xs font-black rounded-lg border transition-all ${
                     lobbyTab === "history"
                       ? "bg-amber-500 text-neutral-950 border-amber-400 shadow-md"
                       : "bg-neutral-950 text-neutral-400 border-neutral-850 hover:text-white"
@@ -1189,10 +1187,11 @@ export const OneOnOneArena: React.FC<OneOnOneArenaProps> = ({ user, onUpdateWall
               </div>
             </div>
 
-            {lobbyTab === "rooms" ? (
-              <div className="space-y-4">
-                {rooms.filter((r) => r.status === "open").length === 0 ? (
-                  <div className="p-8 text-center bg-neutral-950/60 rounded-xl border border-neutral-850 text-neutral-500 text-xs space-y-2">
+            <div className="flex-1 min-h-0 overflow-y-auto custom-scrollbar pt-2 pr-0.5 space-y-2">
+              {lobbyTab === "rooms" ? (
+                <div className="space-y-3">
+                  {rooms.filter((r) => r.status === "open").length === 0 ? (
+                    <div className="p-8 text-center bg-neutral-950/60 rounded-xl border border-neutral-850 text-neutral-500 text-xs space-y-2">
                     <p>No active rooms online right now.</p>
                     <p className="text-[11px] text-amber-400 font-medium">Use matchmaking or click "Create Personal Room" above to start!</p>
                   </div>
@@ -1418,6 +1417,7 @@ export const OneOnOneArena: React.FC<OneOnOneArenaProps> = ({ user, onUpdateWall
               </div>
             )}
           </div>
+        </div>
         </div>
       )}
 
@@ -1982,73 +1982,110 @@ export const OneOnOneArena: React.FC<OneOnOneArenaProps> = ({ user, onUpdateWall
         </div>
       )}
 
-      {/* Live 1v1 Battle Ground Screen */}
+      {/* Live 1v1 Battle Ground Screen - 100% Zero-Scroll Smart UI */}
       {activeMode === "in_match" && duel && (
-        <div className="space-y-4">
-          {/* Top Battle Screen Utility Bar */}
-          <div className="bg-neutral-900/90 border border-amber-500/30 rounded-2xl p-3 sm:p-4 flex flex-wrap items-center justify-between gap-2.5 shadow-2xl backdrop-blur-md">
-            <div className="flex items-center gap-2 sm:gap-3">
+        <div className="w-full h-full flex-1 min-h-0 flex flex-col justify-between overflow-hidden relative select-none gap-1 sm:gap-2 p-0.5 sm:p-1">
+          {/* Top Battle Screen Utility Bar (Compact ~40px) */}
+          <div className="bg-neutral-900/95 border border-amber-500/30 rounded-xl px-2.5 sm:px-3 py-1.5 flex items-center justify-between gap-2 shadow-lg backdrop-blur-md shrink-0 z-20">
+            <div className="flex items-center gap-1.5 sm:gap-2">
               <button
                 onClick={() => {
                   sound.playButtonClick();
                   setActiveMode("lobby");
                 }}
-                className="px-2.5 sm:px-3 py-1.5 rounded-xl bg-neutral-800 hover:bg-neutral-700 text-neutral-300 text-xs font-bold border border-neutral-700 transition-all flex items-center gap-1.5"
+                className="px-2 py-1 rounded-lg bg-neutral-800 hover:bg-neutral-700 text-neutral-300 text-xs font-bold border border-neutral-700 transition-all flex items-center gap-1 cursor-pointer"
+                title="Exit to Lobby"
               >
-                <X className="w-4 h-4 text-amber-400" />
-                <span>Exit</span>
+                <X className="w-3.5 h-3.5 text-amber-400" />
+                <span className="hidden xs:inline">Exit</span>
               </button>
-              <div className="text-xs font-bold text-neutral-300 flex items-center gap-1.5">
-                <Shield className="w-4 h-4 text-amber-400" />
-                <span>1v1 Arena: <span className="text-amber-400">{duel.tier} Tier</span></span>
+              <div className="text-[11px] sm:text-xs font-bold text-neutral-300 flex items-center gap-1 bg-neutral-950/80 px-2 py-0.5 rounded-lg border border-neutral-800">
+                <Shield className="w-3.5 h-3.5 text-amber-400" />
+                <span>{duel.tier} Tier</span>
+              </div>
+              <div className="hidden sm:flex items-center gap-1 bg-neutral-950/80 px-2 py-0.5 rounded-lg border border-neutral-800 text-[10px] text-neutral-400">
+                <Eye className={`w-3 h-3 ${duel.spectatorsCount > 0 ? "text-emerald-400 animate-pulse" : "text-neutral-500"}`} />
+                <span>{duel.spectatorsCount} live</span>
               </div>
             </div>
 
-            {/* Turn & 1-Minute Countdown Badge */}
-            {duel.status === "BETTING" && (
-              <div className={`flex items-center gap-2 px-3.5 py-1.5 rounded-2xl border transition-all ${
+            {/* Turn & 60-Second Countdown Badge */}
+            {duel.status === "BETTING" ? (
+              <div className={`flex items-center gap-1.5 px-2.5 py-0.5 rounded-full border transition-all ${
                 duel.secondsRemaining <= 10
-                  ? "bg-red-500/20 border-red-500/80 text-red-400 animate-pulse shadow-lg shadow-red-500/30"
+                  ? "bg-red-500/20 border-red-500/80 text-red-300 animate-pulse shadow-md shadow-red-500/30"
                   : duel.secondsRemaining <= 20
-                  ? "bg-amber-500/20 border-amber-500/60 text-amber-300 shadow-md"
+                  ? "bg-amber-500/20 border-amber-500/60 text-amber-300"
                   : "bg-emerald-500/15 border-emerald-500/40 text-emerald-300"
               }`}>
-                <Clock className="w-4 h-4 animate-spin" style={{ animationDuration: '4s' }} />
-                <div className="flex flex-col text-left leading-none">
-                  <span className="text-[9px] uppercase font-mono font-bold tracking-wider opacity-80">
-                    {duel.turnUser === duel.userRole ? "YOUR TURN" : "OPPONENT'S TURN"}
+                <Clock className="w-3.5 h-3.5 animate-spin" style={{ animationDuration: '4s' }} />
+                <div className="flex items-center gap-1.5 text-left leading-none">
+                  <span className="text-[9px] uppercase font-mono font-bold tracking-wider opacity-90">
+                    {duel.turnUser === duel.userRole ? "YOUR TURN" : "OPPONENT"}
                   </span>
-                  <span className="text-xs sm:text-sm font-black font-mono">
+                  <span className="text-xs font-black font-mono">
                     {Math.floor(duel.secondsRemaining / 60)}:{(duel.secondsRemaining % 60).toString().padStart(2, '0')}s
                   </span>
                 </div>
               </div>
+            ) : duel.status === "PEEK_CARDS" ? (
+              <div className="px-2.5 py-0.5 rounded-full bg-amber-500/20 border border-amber-400 text-amber-300 text-[10px] font-bold animate-pulse flex items-center gap-1">
+                <span>👁️</span>
+                <span>PEEK HOLE CARDS</span>
+              </div>
+            ) : duel.status === "SHOWDOWN" ? (
+              <div className="px-2.5 py-0.5 rounded-full bg-purple-500/20 border border-purple-400 text-purple-300 text-[10px] font-bold animate-pulse flex items-center gap-1">
+                <span>⚔️</span>
+                <span>SHOWDOWN</span>
+              </div>
+            ) : (
+              <div className="px-2.5 py-0.5 rounded-full bg-emerald-500/20 border border-emerald-400 text-emerald-300 text-[10px] font-bold flex items-center gap-1">
+                <span>🏆</span>
+                <span>RESULT</span>
+              </div>
             )}
 
-            {/* Real Live Spectator Count */}
-            <div className="hidden sm:flex items-center gap-2 bg-neutral-950/80 px-3 py-1 rounded-full border border-neutral-800 text-xs text-neutral-400">
-              <Eye className={`w-4 h-4 ${duel.spectatorsCount > 0 ? "text-emerald-400 animate-pulse" : "text-neutral-500"}`} />
-              <span>{duel.spectatorsCount} live</span>
-            </div>
-
-            {/* Live Pot Badge */}
-            <div className="bg-gradient-to-r from-amber-500/20 via-neutral-950 to-amber-500/20 border border-amber-500/50 px-3.5 sm:px-4 py-1.5 rounded-2xl text-center">
-              <div className="text-[9px] sm:text-[10px] uppercase font-bold text-amber-300">POT IN ESCROW</div>
-              <div className="text-sm sm:text-base font-black text-amber-400">
-                {currencySymbol}{duel.currentPot.toLocaleString()}
+            {/* Live Pot & Comms Toggle */}
+            <div className="flex items-center gap-1.5">
+              <div className="bg-gradient-to-r from-amber-500/20 via-neutral-950 to-amber-500/20 border border-amber-500/50 px-2.5 py-0.5 rounded-lg text-center flex items-center gap-1">
+                <span className="text-[9px] uppercase font-bold text-amber-300/80 hidden xs:inline">POT:</span>
+                <span className="text-xs sm:text-sm font-black text-amber-400">
+                  {currencySymbol}{duel.currentPot.toLocaleString()}
+                </span>
               </div>
+
+              {/* Chat & Taunts Drawer Toggle Button */}
+              <button
+                onClick={() => {
+                  sound.playButtonClick();
+                  setIsCommsOpen(!isCommsOpen);
+                  if (!isCommsOpen) setUnreadChatCount(0);
+                }}
+                className={`relative px-2 py-1 rounded-lg text-xs font-bold border transition-all flex items-center gap-1 cursor-pointer ${
+                  isCommsOpen
+                    ? "bg-amber-500 text-neutral-950 border-amber-400 shadow font-black"
+                    : "bg-neutral-800 hover:bg-neutral-700 text-neutral-300 border-neutral-700"
+                }`}
+                title="Open Match Chat & Voice Taunts"
+              >
+                <MessageSquare className="w-3.5 h-3.5" />
+                <span className="hidden sm:inline">Chat</span>
+                {unreadChatCount > 0 && !isCommsOpen && (
+                  <span className="w-2 h-2 rounded-full bg-red-500 animate-ping absolute -top-0.5 -right-0.5" />
+                )}
+              </button>
             </div>
           </div>
 
-          {/* Main 1v1 Table Felt Canvas */}
-          <div className="bg-neutral-950 border-2 border-amber-500/40 rounded-3xl p-4 sm:p-6 relative shadow-2xl overflow-hidden bg-[radial-gradient(ellipse_at_center,rgba(180,83,9,0.25),rgba(0,0,0,0.9))]">
+          {/* Main 1v1 Table Felt Canvas (The Arena, fills remaining vertical space) */}
+          <div className="flex-1 min-h-0 relative rounded-2xl border-2 border-amber-500/40 p-2 sm:p-3 flex flex-col justify-between items-center overflow-hidden shadow-2xl bg-[radial-gradient(ellipse_at_center,rgba(180,83,9,0.22),rgba(10,12,18,0.98))]">
             {/* Background Felt Graphic Glows */}
-            <div className="absolute top-1/2 left-1/4 -translate-x-1/2 -translate-y-1/2 w-80 h-80 bg-red-600/10 rounded-full blur-3xl pointer-events-none" />
-            <div className="absolute top-1/2 right-1/4 translate-x-1/2 -translate-y-1/2 w-80 h-80 bg-amber-500/10 rounded-full blur-3xl pointer-events-none" />
+            <div className="absolute top-1/2 left-1/4 -translate-x-1/2 -translate-y-1/2 w-64 h-64 bg-red-600/12 rounded-full blur-3xl pointer-events-none" />
+            <div className="absolute top-1/2 right-1/4 translate-x-1/2 -translate-y-1/2 w-64 h-64 bg-amber-500/12 rounded-full blur-3xl pointer-events-none" />
 
-            {/* Live 1-Minute Countdown Progress Bar across the Felt */}
+            {/* Live Countdown Progress Bar across top edge of felt */}
             {duel.status === "BETTING" && (
-              <div className="w-full bg-neutral-900/80 rounded-full h-2.5 p-0.5 border border-white/10 mb-3 sm:mb-4 overflow-hidden shadow-inner relative z-20">
+              <div className="w-full bg-neutral-900/80 rounded-full h-1.5 overflow-hidden shadow-inner border border-white/10 shrink-0 relative z-10">
                 <div
                   className={`h-full rounded-full transition-all duration-1000 ${
                     duel.secondsRemaining <= 10
@@ -2074,296 +2111,298 @@ export const OneOnOneArena: React.FC<OneOnOneArenaProps> = ({ user, onUpdateWall
 
             {/* Role Assignment Coin Flip Banner */}
             {duel.status === "ROLE_COIN_FLIP" && (
-              <div className="p-4 bg-amber-500/20 border border-amber-500/40 rounded-2xl text-center space-y-2 animate-pulse mb-4 z-20 relative">
-                <div className="text-2xl">🪙</div>
-                <div className="text-base font-black text-amber-300">Flipping coin for roles...</div>
-                <div className="text-xs text-neutral-300">
-                  You assigned: <span className="font-bold text-amber-400">{duel.userRole}</span> vs Opponent: <span className="font-bold text-amber-400">{duel.userRole === "DRAGON" ? "TIGER" : "DRAGON"}</span>
+              <div className="p-3 bg-amber-500/20 border border-amber-500/40 rounded-xl text-center space-y-1 animate-pulse z-20 relative w-full max-w-sm">
+                <div className="text-xl">🪙</div>
+                <div className="text-sm font-black text-amber-300">Flipping coin for roles...</div>
+                <div className="text-[11px] text-neutral-300">
+                  You: <span className="font-bold text-amber-400">{duel.userRole}</span> vs Opponent: <span className="font-bold text-amber-400">{duel.userRole === "DRAGON" ? "TIGER" : "DRAGON"}</span>
                 </div>
               </div>
             )}
 
-            {/* 2 Players Arena Facing Layout */}
+            {/* 2 Players Arena Facing Layout - Perfectly Side-by-Side Zero-Scroll */}
             {(() => {
               const dragonGlow = getCardStrengthGlow(duel.dragonPlayer.card);
               const tigerGlow = getCardStrengthGlow(duel.tigerPlayer.card);
 
               return (
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 sm:gap-6 relative z-10 my-2 sm:my-4">
+                <div className="flex-1 min-h-0 w-full max-w-2xl mx-auto flex items-center justify-between gap-2 sm:gap-4 my-auto relative z-10 px-1">
                   {/* Dragon Player Box */}
                   <div
-                    className={`p-3 sm:p-4 rounded-2xl border-2 transition-all relative ${
-                      duel.winnerRole === "DRAGON"
+                    className={`flex-1 p-2 sm:p-3 rounded-2xl border-2 transition-all relative flex flex-col justify-between items-center ${
+                      duel.winnerRole === "DRAGON" && (duel.status === "SHOWDOWN" || duel.status === "SETTLED")
                         ? "bg-amber-500/20 border-amber-400 shadow-2xl shadow-amber-500/40 ring-2 ring-amber-400"
                         : "bg-neutral-900/80 border-neutral-800"
                     }`}
                   >
                     {/* Speech Bubble above opponent */}
                     {!duel.dragonPlayer.isUser && opponentSpeechBubble && (
-                      <div className="absolute -top-12 sm:-top-16 left-1/2 -translate-x-1/2 bg-amber-500 text-neutral-950 px-3 sm:px-4 py-1.5 sm:py-2 rounded-2xl text-[10px] sm:text-xs font-black shadow-2xl border-2 border-white animate-bounce z-30 min-w-[140px] sm:min-w-[180px] text-center">
-                        <div className="absolute bottom-[-8px] left-1/2 -translate-x-1/2 w-0 h-0 border-l-[8px] border-l-transparent border-r-[8px] border-r-transparent border-t-[8px] border-t-amber-500"></div>
+                      <div className="absolute -top-10 sm:-top-12 left-1/2 -translate-x-1/2 bg-amber-500 text-neutral-950 px-2.5 py-1 rounded-xl text-[10px] font-black shadow-2xl border border-white animate-bounce z-30 max-w-[150px] truncate text-center">
+                        <div className="absolute bottom-[-6px] left-1/2 -translate-x-1/2 w-0 h-0 border-l-[6px] border-l-transparent border-r-[6px] border-r-transparent border-t-[6px] border-t-amber-500"></div>
                         <span>{opponentSpeechBubble}</span>
                       </div>
                     )}
 
                     {/* Winner Crown */}
-                    {duel.winnerRole === "DRAGON" && (
-                      <div className="absolute -top-4 left-1/2 -translate-x-1/2 bg-amber-400 text-neutral-950 px-2 sm:px-3 py-0.5 rounded-full text-[10px] sm:text-xs font-black flex items-center gap-1 shadow-lg whitespace-nowrap">
-                        <Crown className="w-3 sm:w-3.5 h-3 sm:h-3.5" />
+                    {duel.winnerRole === "DRAGON" && (duel.status === "SHOWDOWN" || duel.status === "SETTLED") && (
+                      <div className="absolute -top-3 left-1/2 -translate-x-1/2 bg-amber-400 text-neutral-950 px-2 py-0.5 rounded-full text-[9px] font-black flex items-center gap-1 shadow-lg whitespace-nowrap z-20">
+                        <Crown className="w-3 h-3" />
                         <span>DRAGON WINS!</span>
                       </div>
                     )}
 
-                    <div className="flex items-center justify-between mb-2 sm:mb-3">
-                      <div className="flex items-center gap-2 sm:gap-2.5">
-                        <div className="w-8 h-8 sm:w-10 sm:h-10 rounded-xl sm:rounded-2xl bg-red-600/20 border border-red-500/40 flex items-center justify-center font-bold text-red-400 text-xs sm:text-sm">
+                    {/* Player Info Header */}
+                    <div className="w-full flex items-center justify-between mb-1.5">
+                      <div className="flex items-center gap-1.5">
+                        <div className="w-7 h-7 sm:w-8 sm:h-8 rounded-xl bg-red-600/20 border border-red-500/40 flex items-center justify-center font-bold text-red-400 text-xs sm:text-sm shrink-0">
                           🐉
                         </div>
-                        <div>
-                          <div className="text-[11px] sm:text-xs font-black text-white flex items-center gap-1">
-                            <span className="truncate max-w-[80px] sm:max-w-none">{duel.dragonPlayer.username}</span>
+                        <div className="min-w-0">
+                          <div className="text-[10px] sm:text-xs font-black text-white flex items-center gap-1 truncate">
+                            <span className="truncate max-w-[70px] sm:max-w-[100px]">{duel.dragonPlayer.username}</span>
                             {duel.dragonPlayer.isUser && (
-                              <span className="text-[8px] sm:text-[9px] bg-amber-500/20 text-amber-300 border border-amber-500/30 px-1 py-0.2 rounded font-bold">
+                              <span className="text-[8px] bg-amber-500/20 text-amber-300 border border-amber-500/30 px-1 rounded font-bold shrink-0">
                                 YOU
                               </span>
                             )}
                           </div>
-                          <div className="text-[9px] sm:text-[10px] text-neutral-400">ELO {duel.dragonPlayer.eloRank}</div>
+                          <div className="text-[8px] sm:text-[9px] text-neutral-400">ELO {duel.dragonPlayer.eloRank}</div>
                         </div>
                       </div>
 
-                      <div className="text-right">
-                        <div className="text-[8px] sm:text-[10px] uppercase font-bold text-neutral-400">Bet</div>
-                        <div className="text-[11px] sm:text-xs font-black text-amber-400">{currencySymbol}{duel.dragonPlayer.currentBet.toLocaleString()}</div>
+                      <div className="text-right shrink-0">
+                        <div className="text-[7.5px] uppercase font-bold text-neutral-400">Bet</div>
+                        <div className="text-[10px] sm:text-xs font-black text-amber-400">{currencySymbol}{duel.dragonPlayer.currentBet.toLocaleString()}</div>
                       </div>
                     </div>
 
                     {/* Dragon Hole Card Display */}
-                    <div className="flex flex-col items-center justify-center py-2 sm:py-4">
+                    <div className="flex flex-col items-center justify-center my-auto py-1">
                       {duel.status === "PEEK_CARDS" && duel.dragonPlayer.isUser ? (
-                        <div className="flex flex-col items-center justify-center py-2 bg-neutral-900/40 px-3 sm:px-4 rounded-xl border border-dashed border-amber-500/20">
-                          <div className="text-center text-[9px] sm:text-[10px] text-amber-300 font-bold mb-1">
-                            {isPeeked ? "✅ REVEALED" : "HOLD TO PEEP"}
-                          </div>
-                          
+                        <div className="flex flex-col items-center justify-center">
                           <div
                             onMouseDown={() => setIsPressingCard(true)}
                             onMouseUp={() => setIsPressingCard(false)}
                             onMouseLeave={() => setIsPressingCard(false)}
                             onTouchStart={() => setIsPressingCard(true)}
                             onTouchEnd={() => setIsPressingCard(false)}
-                            className={`relative w-24 h-36 sm:w-28 sm:h-40 rounded-xl sm:rounded-2xl border-2 flex flex-col justify-between p-2.5 sm:p-3 select-none transition-all cursor-pointer ${
+                            className={`relative w-20 h-28 xs:w-24 xs:h-34 sm:w-28 sm:h-38 rounded-xl sm:rounded-2xl border-2 flex flex-col justify-between p-2 select-none transition-all cursor-pointer ${
                               isPeeked
                                 ? dragonGlow.glow
                                 : isPressingCard
-                                ? "border-amber-400 bg-neutral-950 scale-105 shadow-2xl -rotate-2 animate-pulse"
+                                ? "border-amber-400 bg-neutral-950 scale-105 shadow-2xl -rotate-1 animate-pulse"
                                 : "border-amber-500/50 bg-gradient-to-br from-neutral-900 via-neutral-950 to-amber-950 shadow-xl"
                             }`}
                           >
                             {isPeeked ? (
                               <>
-                                <div className="text-sm sm:text-base font-black text-white">{duel.dragonPlayer.card?.rank}</div>
-                                <div className="text-2xl sm:text-3xl text-center">{duel.dragonPlayer.card?.suit}</div>
-                                <div className="text-right text-sm sm:text-base font-black text-white">{duel.dragonPlayer.card?.rank}</div>
+                                <div className="text-xs sm:text-base font-black text-white">{duel.dragonPlayer.card?.rank}</div>
+                                <div className="text-xl sm:text-3xl text-center">{duel.dragonPlayer.card?.suit}</div>
+                                <div className="text-right text-xs sm:text-base font-black text-white">{duel.dragonPlayer.card?.rank}</div>
                               </>
                             ) : (
-                              <div className="absolute inset-0 flex flex-col items-center justify-center text-center p-2">
-                                <div className="text-xl sm:text-2xl animate-bounce">👇</div>
-                                <div className="text-[8px] sm:text-[9px] uppercase font-bold text-neutral-400 mt-1">PRESS</div>
-                                <div className="w-4/5 bg-neutral-800 h-1 rounded-full mt-2 overflow-hidden">
-                                  <div className="bg-gradient-to-r from-amber-500 to-amber-400 h-full transition-all duration-75" style={{ width: `${squeezePercent}%` }}></div>
+                              <div className="absolute inset-0 flex flex-col items-center justify-center text-center p-1.5">
+                                <div className="text-lg sm:text-xl animate-bounce">👇</div>
+                                <div className="text-[8px] uppercase font-bold text-neutral-400">HOLD PEEK</div>
+                                <div className="w-4/5 bg-neutral-800 h-1 rounded-full mt-1.5 overflow-hidden">
+                                  <div className="bg-gradient-to-r from-amber-500 to-amber-400 h-full transition-all duration-75" style={{ width: `${squeezePercent}%` }} />
                                 </div>
                               </div>
                             )}
                           </div>
 
-                          {!isPeeked && (
-                            <input
-                              type="range"
-                              min="0"
-                              max="100"
-                              value={squeezePercent}
-                              onChange={(e) => {
-                                const val = parseInt(e.target.value);
-                                setSqueezePercent(val);
-                                if (val >= 100) {
-                                  setIsPeeked(true);
-                                  sound.playCardFlip();
-                                  sound.speak("Revealed!");
+                          {!isPeeked ? (
+                            <button
+                              onClick={() => {
+                                setIsPeeked(true);
+                                sound.playCardFlip();
+                                sound.speak("Revealed!");
+                                if (duel?.matchId) {
+                                  fetch(`/api/rooms/duel/${duel.matchId}/peek`, {
+                                    method: "POST",
+                                    headers: { "Content-Type": "application/json" },
+                                    body: JSON.stringify({ userId: user?.userId || "guest" }),
+                                  }).catch(() => {});
                                 }
                               }}
-                              className="w-20 sm:w-24 accent-amber-500 h-1 bg-neutral-800 rounded-lg cursor-pointer mt-2"
-                            />
-                          )}
-
-                          {isPeeked && (
+                              className="mt-1.5 px-2 py-0.5 bg-amber-500 hover:bg-amber-400 text-neutral-950 font-bold text-[9px] rounded shadow cursor-pointer active:scale-95"
+                            >
+                              Quick Reveal
+                            </button>
+                          ) : (
                             <button
                               onClick={() => {
                                 sound.playButtonClick();
                                 setDuel((prev) => prev ? { ...prev, status: "BETTING" } : null);
                               }}
-                              className="mt-2.5 px-2.5 py-1 bg-amber-500 hover:bg-amber-400 text-neutral-950 font-black text-[9px] sm:text-[10px] rounded-md shadow transition-all active:scale-95 flex items-center gap-1"
+                              className="mt-1.5 px-2 py-0.5 bg-emerald-500 hover:bg-emerald-400 text-white font-black text-[9px] rounded shadow flex items-center gap-1 active:scale-95"
                             >
-                              <span>Confirm</span>
+                              <span>Done</span>
                               <ArrowRight className="w-2.5 h-2.5" />
                             </button>
                           )}
                         </div>
                       ) : duel.dragonPlayer.isUser || duel.status === "SHOWDOWN" || duel.status === "SETTLED" ? (
-                        <div className={`w-24 h-36 sm:w-28 sm:h-40 rounded-xl sm:rounded-2xl border-2 flex flex-col justify-between p-2.5 sm:p-3 transition-all ${dragonGlow.glow}`}>
-                          <div className="text-sm sm:text-base font-black text-white">{duel.dragonPlayer.card?.rank}</div>
-                          <div className="text-2xl sm:text-3xl text-center">{duel.dragonPlayer.card?.suit}</div>
-                          <div className="text-right text-sm sm:text-base font-black text-white">{duel.dragonPlayer.card?.rank}</div>
+                        <div className={`w-20 h-28 xs:w-24 xs:h-34 sm:w-28 sm:h-38 rounded-xl sm:rounded-2xl border-2 flex flex-col justify-between p-2 sm:p-2.5 transition-all ${dragonGlow.glow}`}>
+                          <div className="text-xs sm:text-base font-black text-white">{duel.dragonPlayer.card?.rank}</div>
+                          <div className="text-xl sm:text-3xl text-center">{duel.dragonPlayer.card?.suit}</div>
+                          <div className="text-right text-xs sm:text-base font-black text-white">{duel.dragonPlayer.card?.rank}</div>
                         </div>
                       ) : (
-                        <div className="w-24 h-36 sm:w-28 sm:h-40 rounded-xl sm:rounded-2xl border-2 border-amber-500/40 bg-gradient-to-br from-neutral-900 via-neutral-950 to-amber-950 flex items-center justify-center text-2xl sm:text-3xl shadow-xl">
+                        <div className="w-20 h-28 xs:w-24 xs:h-34 sm:w-28 sm:h-38 rounded-xl sm:rounded-2xl border-2 border-amber-500/40 bg-gradient-to-br from-neutral-900 via-neutral-950 to-amber-950 flex items-center justify-center text-xl sm:text-3xl shadow-xl text-amber-500/60">
                           🂠
                         </div>
                       )}
 
-                      {/* Strength Glow Text (For User's Hole Card) */}
+                      {/* Strength Glow Text */}
                       {duel.dragonPlayer.isUser && duel.status !== "ROLE_COIN_FLIP" && (
-                        <div className={`mt-1.5 sm:mt-2 text-[10px] sm:text-xs font-black ${dragonGlow.color}`}>
+                        <div className={`mt-1 text-[9px] sm:text-[10px] font-black ${dragonGlow.color} truncate max-w-[110px]`}>
                           {dragonGlow.text}
                         </div>
                       )}
                     </div>
                   </div>
 
+                  {/* Center VS & Pot Pill */}
+                  <div className="flex flex-col items-center justify-center shrink-0 px-1 z-10">
+                    <div className="w-8 h-8 sm:w-9 sm:h-9 rounded-full bg-neutral-950 border border-amber-500/40 flex items-center justify-center shadow-lg shadow-amber-500/20">
+                      <span className="text-[10px] sm:text-xs font-black text-amber-400">VS</span>
+                    </div>
+                    <div className="mt-1 bg-black/80 border border-amber-500/40 px-2 py-0.5 rounded-full text-[9px] font-bold text-amber-300 whitespace-nowrap shadow">
+                      {currencySymbol}{duel.currentPot.toLocaleString()}
+                    </div>
+                  </div>
+
                   {/* Tiger Player Box */}
                   <div
-                    className={`p-3 sm:p-4 rounded-2xl border-2 transition-all relative ${
-                      duel.winnerRole === "TIGER"
+                    className={`flex-1 p-2 sm:p-3 rounded-2xl border-2 transition-all relative flex flex-col justify-between items-center ${
+                      duel.winnerRole === "TIGER" && (duel.status === "SHOWDOWN" || duel.status === "SETTLED")
                         ? "bg-amber-500/20 border-amber-400 shadow-2xl shadow-amber-500/40 ring-2 ring-amber-400"
                         : "bg-neutral-900/80 border-neutral-800"
                     }`}
                   >
                     {/* Speech Bubble above opponent */}
                     {!duel.tigerPlayer.isUser && opponentSpeechBubble && (
-                      <div className="absolute -top-12 sm:-top-16 left-1/2 -translate-x-1/2 bg-amber-500 text-neutral-950 px-3 sm:px-4 py-1.5 sm:py-2 rounded-2xl text-[10px] sm:text-xs font-black shadow-2xl border-2 border-white animate-bounce z-30 min-w-[140px] sm:min-w-[180px] text-center">
-                        <div className="absolute bottom-[-8px] left-1/2 -translate-x-1/2 w-0 h-0 border-l-[8px] border-l-transparent border-r-[8px] border-r-transparent border-t-[8px] border-t-amber-500"></div>
+                      <div className="absolute -top-10 sm:-top-12 left-1/2 -translate-x-1/2 bg-amber-500 text-neutral-950 px-2.5 py-1 rounded-xl text-[10px] font-black shadow-2xl border border-white animate-bounce z-30 max-w-[150px] truncate text-center">
+                        <div className="absolute bottom-[-6px] left-1/2 -translate-x-1/2 w-0 h-0 border-l-[6px] border-l-transparent border-r-[6px] border-r-transparent border-t-[6px] border-t-amber-500"></div>
                         <span>{opponentSpeechBubble}</span>
                       </div>
                     )}
 
                     {/* Winner Crown */}
-                    {duel.winnerRole === "TIGER" && (
-                      <div className="absolute -top-4 left-1/2 -translate-x-1/2 bg-amber-400 text-neutral-950 px-2 sm:px-3 py-0.5 rounded-full text-[10px] sm:text-xs font-black flex items-center gap-1 shadow-lg whitespace-nowrap">
-                        <Crown className="w-3 sm:w-3.5 h-3 sm:h-3.5" />
+                    {duel.winnerRole === "TIGER" && (duel.status === "SHOWDOWN" || duel.status === "SETTLED") && (
+                      <div className="absolute -top-3 left-1/2 -translate-x-1/2 bg-amber-400 text-neutral-950 px-2 py-0.5 rounded-full text-[9px] font-black flex items-center gap-1 shadow-lg whitespace-nowrap z-20">
+                        <Crown className="w-3 h-3" />
                         <span>TIGER WINS!</span>
                       </div>
                     )}
 
-                    <div className="flex items-center justify-between mb-2 sm:mb-3">
-                      <div className="flex items-center gap-2 sm:gap-2.5">
-                        <div className="w-8 h-8 sm:w-10 sm:h-10 rounded-xl sm:rounded-2xl bg-amber-500/20 border border-amber-500/40 flex items-center justify-center font-bold text-amber-400 text-xs sm:text-sm">
+                    {/* Player Info Header */}
+                    <div className="w-full flex items-center justify-between mb-1.5">
+                      <div className="flex items-center gap-1.5">
+                        <div className="w-7 h-7 sm:w-8 sm:h-8 rounded-xl bg-amber-500/20 border border-amber-500/40 flex items-center justify-center font-bold text-amber-400 text-xs sm:text-sm shrink-0">
                           🐅
                         </div>
-                        <div>
-                          <div className="text-[11px] sm:text-xs font-black text-white flex items-center gap-1">
-                            <span className="truncate max-w-[80px] sm:max-w-none">{duel.tigerPlayer.username}</span>
+                        <div className="min-w-0">
+                          <div className="text-[10px] sm:text-xs font-black text-white flex items-center gap-1 truncate">
+                            <span className="truncate max-w-[70px] sm:max-w-[100px]">{duel.tigerPlayer.username}</span>
                             {duel.tigerPlayer.isUser && (
-                              <span className="text-[8px] sm:text-[9px] bg-amber-500/20 text-amber-300 border border-amber-500/30 px-1 py-0.2 rounded font-bold">
+                              <span className="text-[8px] bg-amber-500/20 text-amber-300 border border-amber-500/30 px-1 rounded font-bold shrink-0">
                                 YOU
                               </span>
                             )}
                           </div>
-                          <div className="text-[9px] sm:text-[10px] text-neutral-400">ELO {duel.tigerPlayer.eloRank}</div>
+                          <div className="text-[8px] sm:text-[9px] text-neutral-400">ELO {duel.tigerPlayer.eloRank}</div>
                         </div>
                       </div>
 
-                      <div className="text-right">
-                        <div className="text-[8px] sm:text-[10px] uppercase font-bold text-neutral-400">Bet</div>
-                        <div className="text-[11px] sm:text-xs font-black text-amber-400">{currencySymbol}{duel.tigerPlayer.currentBet.toLocaleString()}</div>
+                      <div className="text-right shrink-0">
+                        <div className="text-[7.5px] uppercase font-bold text-neutral-400">Bet</div>
+                        <div className="text-[10px] sm:text-xs font-black text-amber-400">{currencySymbol}{duel.tigerPlayer.currentBet.toLocaleString()}</div>
                       </div>
                     </div>
 
                     {/* Tiger Hole Card Display */}
-                    <div className="flex flex-col items-center justify-center py-2 sm:py-4">
+                    <div className="flex flex-col items-center justify-center my-auto py-1">
                       {duel.status === "PEEK_CARDS" && duel.tigerPlayer.isUser ? (
-                        <div className="flex flex-col items-center justify-center py-2 bg-neutral-900/40 px-3 sm:px-4 rounded-xl border border-dashed border-amber-500/20">
-                          <div className="text-center text-[9px] sm:text-[10px] text-amber-300 font-bold mb-1">
-                            {isPeeked ? "✅ REVEALED" : "HOLD TO PEEP"}
-                          </div>
-                          
+                        <div className="flex flex-col items-center justify-center">
                           <div
                             onMouseDown={() => setIsPressingCard(true)}
                             onMouseUp={() => setIsPressingCard(false)}
                             onMouseLeave={() => setIsPressingCard(false)}
                             onTouchStart={() => setIsPressingCard(true)}
                             onTouchEnd={() => setIsPressingCard(false)}
-                            className={`relative w-24 h-36 sm:w-28 sm:h-40 rounded-xl sm:rounded-2xl border-2 flex flex-col justify-between p-2.5 sm:p-3 select-none transition-all cursor-pointer ${
+                            className={`relative w-20 h-28 xs:w-24 xs:h-34 sm:w-28 sm:h-38 rounded-xl sm:rounded-2xl border-2 flex flex-col justify-between p-2 select-none transition-all cursor-pointer ${
                               isPeeked
                                 ? tigerGlow.glow
                                 : isPressingCard
-                                ? "border-amber-400 bg-neutral-950 scale-105 shadow-2xl rotate-2 animate-pulse"
+                                ? "border-amber-400 bg-neutral-950 scale-105 shadow-2xl rotate-1 animate-pulse"
                                 : "border-amber-500/50 bg-gradient-to-br from-neutral-900 via-neutral-950 to-amber-950 shadow-xl"
                             }`}
                           >
                             {isPeeked ? (
                               <>
-                                <div className="text-sm sm:text-base font-black text-white">{duel.tigerPlayer.card?.rank}</div>
-                                <div className="text-2xl sm:text-3xl text-center">{duel.tigerPlayer.card?.suit}</div>
-                                <div className="text-right text-sm sm:text-base font-black text-white">{duel.tigerPlayer.card?.rank}</div>
+                                <div className="text-xs sm:text-base font-black text-white">{duel.tigerPlayer.card?.rank}</div>
+                                <div className="text-xl sm:text-3xl text-center">{duel.tigerPlayer.card?.suit}</div>
+                                <div className="text-right text-xs sm:text-base font-black text-white">{duel.tigerPlayer.card?.rank}</div>
                               </>
                             ) : (
-                              <div className="absolute inset-0 flex flex-col items-center justify-center text-center p-2">
-                                <div className="text-xl sm:text-2xl animate-bounce">👇</div>
-                                <div className="text-[8px] sm:text-[9px] uppercase font-bold text-neutral-400 mt-1">PRESS</div>
-                                <div className="w-4/5 bg-neutral-800 h-1 rounded-full mt-2 overflow-hidden">
-                                  <div className="bg-gradient-to-r from-amber-500 to-amber-400 h-full transition-all duration-75" style={{ width: `${squeezePercent}%` }}></div>
+                              <div className="absolute inset-0 flex flex-col items-center justify-center text-center p-1.5">
+                                <div className="text-lg sm:text-xl animate-bounce">👇</div>
+                                <div className="text-[8px] uppercase font-bold text-neutral-400">HOLD PEEK</div>
+                                <div className="w-4/5 bg-neutral-800 h-1 rounded-full mt-1.5 overflow-hidden">
+                                  <div className="bg-gradient-to-r from-amber-500 to-amber-400 h-full transition-all duration-75" style={{ width: `${squeezePercent}%` }} />
                                 </div>
                               </div>
                             )}
                           </div>
 
-                          {!isPeeked && (
-                            <input
-                              type="range"
-                              min="0"
-                              max="100"
-                              value={squeezePercent}
-                              onChange={(e) => {
-                                const val = parseInt(e.target.value);
-                                setSqueezePercent(val);
-                                if (val >= 100) {
-                                  setIsPeeked(true);
-                                  sound.playCardFlip();
-                                  sound.speak("Revealed!");
+                          {!isPeeked ? (
+                            <button
+                              onClick={() => {
+                                setIsPeeked(true);
+                                sound.playCardFlip();
+                                sound.speak("Revealed!");
+                                if (duel?.matchId) {
+                                  fetch(`/api/rooms/duel/${duel.matchId}/peek`, {
+                                    method: "POST",
+                                    headers: { "Content-Type": "application/json" },
+                                    body: JSON.stringify({ userId: user?.userId || "guest" }),
+                                  }).catch(() => {});
                                 }
                               }}
-                              className="w-20 sm:w-24 accent-amber-500 h-1 bg-neutral-800 rounded-lg cursor-pointer mt-2"
-                            />
-                          )}
-
-                          {isPeeked && (
+                              className="mt-1.5 px-2 py-0.5 bg-amber-500 hover:bg-amber-400 text-neutral-950 font-bold text-[9px] rounded shadow cursor-pointer active:scale-95"
+                            >
+                              Quick Reveal
+                            </button>
+                          ) : (
                             <button
                               onClick={() => {
                                 sound.playButtonClick();
                                 setDuel((prev) => prev ? { ...prev, status: "BETTING" } : null);
                               }}
-                              className="mt-2.5 px-2.5 py-1 bg-amber-500 hover:bg-amber-400 text-neutral-950 font-black text-[9px] sm:text-[10px] rounded-md shadow transition-all active:scale-95 flex items-center gap-1"
+                              className="mt-1.5 px-2 py-0.5 bg-emerald-500 hover:bg-emerald-400 text-white font-black text-[9px] rounded shadow flex items-center gap-1 active:scale-95"
                             >
-                              <span>Confirm</span>
+                              <span>Done</span>
                               <ArrowRight className="w-2.5 h-2.5" />
                             </button>
                           )}
                         </div>
                       ) : duel.tigerPlayer.isUser || duel.status === "SHOWDOWN" || duel.status === "SETTLED" ? (
-                        <div className={`w-24 h-36 sm:w-28 sm:h-40 rounded-xl sm:rounded-2xl border-2 flex flex-col justify-between p-2.5 sm:p-3 transition-all ${tigerGlow.glow}`}>
-                          <div className="text-sm sm:text-base font-black text-white">{duel.tigerPlayer.card?.rank}</div>
-                          <div className="text-2xl sm:text-3xl text-center">{duel.tigerPlayer.card?.suit}</div>
-                          <div className="text-right text-sm sm:text-base font-black text-white">{duel.tigerPlayer.card?.rank}</div>
+                        <div className={`w-20 h-28 xs:w-24 xs:h-34 sm:w-28 sm:h-38 rounded-xl sm:rounded-2xl border-2 flex flex-col justify-between p-2 sm:p-2.5 transition-all ${tigerGlow.glow}`}>
+                          <div className="text-xs sm:text-base font-black text-white">{duel.tigerPlayer.card?.rank}</div>
+                          <div className="text-xl sm:text-3xl text-center">{duel.tigerPlayer.card?.suit}</div>
+                          <div className="text-right text-xs sm:text-base font-black text-white">{duel.tigerPlayer.card?.rank}</div>
                         </div>
                       ) : (
-                        <div className="w-24 h-36 sm:w-28 sm:h-40 rounded-xl sm:rounded-2xl border-2 border-amber-500/40 bg-gradient-to-br from-neutral-900 via-neutral-950 to-amber-950 flex items-center justify-center text-2xl sm:text-3xl shadow-xl">
+                        <div className="w-20 h-28 xs:w-24 xs:h-34 sm:w-28 sm:h-38 rounded-xl sm:rounded-2xl border-2 border-amber-500/40 bg-gradient-to-br from-neutral-900 via-neutral-950 to-amber-950 flex items-center justify-center text-xl sm:text-3xl shadow-xl text-amber-500/60">
                           🂠
                         </div>
                       )}
 
-                      {/* Strength Glow Text (For User's Hole Card) */}
+                      {/* Strength Glow Text */}
                       {duel.tigerPlayer.isUser && duel.status !== "ROLE_COIN_FLIP" && (
-                        <div className={`mt-1.5 sm:mt-2 text-[10px] sm:text-xs font-black ${tigerGlow.color}`}>
+                        <div className={`mt-1 text-[9px] sm:text-[10px] font-black ${tigerGlow.color} truncate max-w-[110px]`}>
                           {tigerGlow.text}
                         </div>
                       )}
@@ -2373,113 +2412,52 @@ export const OneOnOneArena: React.FC<OneOnOneArenaProps> = ({ user, onUpdateWall
               );
             })()}
 
-            {/* Poker Betting Action Toolbar (Sticky Bottom Safe Area) */}
-            {duel.status === "BETTING" && (
-              <div className="sticky bottom-[62px] md:bottom-3 z-30 p-3.5 sm:p-4 bg-[#0F1420]/95 border-2 border-amber-500/60 rounded-2xl space-y-2.5 shadow-2xl backdrop-blur-xl ring-1 ring-amber-500/30 my-3">
-                <div className="flex items-center justify-between text-xs font-bold">
-                  <div className="flex items-center gap-2">
-                    <span className={duel.turnUser === duel.userRole ? "text-amber-300" : "text-neutral-400"}>
-                      {duel.turnUser === duel.userRole ? "YOUR TURN TO ACT" : "WAITING FOR OPPONENT"}
-                    </span>
-                    <span className={`px-2 py-0.5 rounded-full text-[10px] font-mono font-black ${
-                      duel.secondsRemaining <= 10
-                        ? "bg-red-500 text-white animate-pulse"
-                        : duel.secondsRemaining <= 20
-                        ? "bg-amber-500 text-neutral-950"
-                        : "bg-emerald-500/20 text-emerald-400 border border-emerald-500/30"
-                    }`}>
-                      ⏱️ {Math.floor(duel.secondsRemaining / 60)}:{(duel.secondsRemaining % 60).toString().padStart(2, '0')}s
-                    </span>
-                  </div>
-                  <span className="text-amber-400/80 font-mono text-[11px]">Raises: {duel.raisesCount}/3</span>
-                </div>
-
-                {/* Poker Actions Buttons */}
-                <div className="grid grid-cols-2 sm:grid-cols-5 gap-2">
-                  <button
-                    onClick={() => handleBettingAction("CHECK")}
-                    className="py-2.5 px-2 bg-neutral-800 hover:bg-neutral-700 text-white font-bold text-xs rounded-xl border border-neutral-600 transition-all active:scale-95 flex flex-col items-center justify-center leading-tight cursor-pointer"
-                  >
-                    <span className="font-extrabold text-white text-xs">CHECK</span>
-                    <span className="text-[10px] text-neutral-400 font-normal">Pass Turn</span>
-                  </button>
-
-                  <button
-                    onClick={() => handleBettingAction("RAISE_2X")}
-                    className="py-2.5 px-2 bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-400 hover:to-amber-500 text-neutral-950 font-black text-xs rounded-xl shadow-md transition-all active:scale-95 flex flex-col items-center justify-center leading-tight cursor-pointer"
-                  >
-                    <span className="font-black text-xs">RAISE 2X</span>
-                    <span className="text-[10px] font-mono font-bold text-neutral-950/80">+{currencySymbol}{(duel.ante * 2).toLocaleString()}</span>
-                  </button>
-
-                  <button
-                    onClick={() => handleBettingAction("RAISE_3X")}
-                    className="py-2.5 px-2 bg-gradient-to-r from-amber-500 via-amber-400 to-red-500 hover:from-amber-400 hover:to-red-400 text-neutral-950 font-black text-xs rounded-xl shadow-md transition-all active:scale-95 flex flex-col items-center justify-center leading-tight cursor-pointer"
-                  >
-                    <span className="font-black text-xs">RAISE 3X</span>
-                    <span className="text-[10px] font-mono font-bold text-neutral-950/80">+{currencySymbol}{(duel.ante * 3).toLocaleString()}</span>
-                  </button>
-
-                  <button
-                    onClick={() => handleBettingAction("ALL_IN")}
-                    className="py-2.5 px-2 bg-gradient-to-r from-red-600 to-amber-600 hover:from-red-500 hover:to-amber-500 text-white font-black text-xs rounded-xl shadow-lg shadow-red-600/30 transition-all active:scale-95 flex flex-col items-center justify-center leading-tight cursor-pointer"
-                  >
-                    <span className="font-black text-xs">ALL-IN 💥</span>
-                    <span className="text-[10px] text-amber-200 font-mono">Max Pot</span>
-                  </button>
-
-                  <button
-                    onClick={() => handleBettingAction("FOLD")}
-                    className="col-span-2 sm:col-span-1 py-2.5 px-2 bg-red-950/80 hover:bg-red-900 border border-red-600/50 text-red-300 font-bold text-xs rounded-xl transition-all active:scale-95 flex flex-col items-center justify-center leading-tight cursor-pointer"
-                  >
-                    <span className="font-extrabold text-red-300 text-xs">FOLD</span>
-                    <span className="text-[10px] text-red-400/80 font-normal">Forfeit Match</span>
-                  </button>
-                </div>
-              </div>
-            )}
-
-            {/* Duel Result Modal Summary */}
+            {/* Centered Duel Result Modal Overlay (Zero-Scroll overlay right on felt) */}
             {duel.status === "SETTLED" && (
-              <div className="p-6 bg-neutral-900/95 border-2 border-amber-400 rounded-2xl text-center space-y-4 shadow-2xl backdrop-blur-xl animate-fadeIn my-4">
+              <div className="absolute inset-x-2 top-1/2 -translate-y-1/2 max-w-sm sm:max-w-md mx-auto p-4 bg-neutral-950/95 border-2 border-amber-400 rounded-2xl text-center space-y-2.5 shadow-2xl backdrop-blur-xl animate-in zoom-in-95 duration-200 z-40">
                 <div className="text-3xl">
                   {duel.winnerRole === duel.userRole ? "🏆" : duel.winnerRole === "TIE" ? "👔" : "💔"}
                 </div>
                 <div>
-                  <h3 className="text-xl font-black text-amber-300">
+                  <h3 className="text-base sm:text-lg font-black text-amber-300">
                     {duel.winnerRole === duel.userRole
-                      ? "VICTORY! YOU WON THE DUEL!"
+                      ? "VICTORY! YOU WON!"
                       : duel.winnerRole === "TIE"
-                      ? "TIE GAME (Company Profit Captured)"
+                      ? "TIE GAME (Stake Retained)"
                       : "DUEL LOST!"}
                   </h3>
-                  <p className="text-xs text-neutral-300 mt-1">
-                    Your Card: <span className="font-bold text-amber-400">{duel.userCard?.display}</span> vs Opponent Card: <span className="font-bold text-amber-400">{duel.opponentCard?.display}</span>
+                  <p className="text-[11px] text-neutral-300 mt-0.5">
+                    Your Card: <span className="font-bold text-amber-400">{duel.userCard?.display}</span> vs Opponent: <span className="font-bold text-amber-400">{duel.opponentCard?.display}</span>
                   </p>
                 </div>
 
-                <div className="p-3 bg-neutral-950 rounded-xl border border-neutral-800 max-w-sm mx-auto space-y-1">
-                  <div className="text-xs text-neutral-400">Total Pot: {currencySymbol}{duel.currentPot.toLocaleString()}</div>
-                  <div className={`text-base font-black ${duel.netProfit && duel.netProfit > 0 ? "text-emerald-400" : "text-red-400"}`}>
+                <div className="p-2 bg-neutral-900 rounded-xl border border-neutral-800 max-w-xs mx-auto space-y-0.5">
+                  <div className="text-[10px] text-neutral-400">Total Pot: {currencySymbol}{duel.currentPot.toLocaleString()}</div>
+                  <div className={`text-sm sm:text-base font-black ${duel.netProfit && duel.netProfit > 0 ? "text-emerald-400" : "text-red-400"}`}>
                     Net Profit: {duel.netProfit && duel.netProfit > 0 ? `+${currencySymbol}${duel.netProfit.toLocaleString()}` : `-${currencySymbol}${Math.abs(duel.netProfit || 0).toLocaleString()}`}
                   </div>
                 </div>
 
-                <div className="flex items-center justify-center gap-3">
+                <div className="flex items-center justify-center gap-2 pt-1">
                   <button
                     onClick={() => handleStartMatchmaking(duel.tier)}
-                    className="px-6 py-3 bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-400 hover:to-amber-500 text-neutral-950 font-black text-xs rounded-xl shadow-lg transition-all active:scale-95 flex items-center gap-1.5"
+                    className="flex-1 py-2 px-3 bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-400 hover:to-amber-500 text-neutral-950 font-black text-xs rounded-xl shadow-lg transition-all active:scale-95 flex items-center justify-center gap-1 cursor-pointer"
                   >
-                    <RotateCcw className="w-4 h-4" />
-                    <span>Play Again / Rematch</span>
+                    <RotateCcw className="w-3.5 h-3.5" />
+                    <span>Play Again</span>
                   </button>
 
                   <button
                     onClick={() => {
                       sound.playButtonClick();
+                      setDuel(null);
                       setActiveMode("lobby");
+                      setCreatedRoomId(null);
+                      setPersonalCreatedRoom(null);
+                      setIsSearching(false);
+                      fetchRooms();
                     }}
-                    className="px-6 py-3 bg-neutral-800 hover:bg-neutral-700 text-neutral-200 font-bold text-xs rounded-xl border border-neutral-700 transition-all"
+                    className="flex-1 py-2 px-3 bg-neutral-800 hover:bg-neutral-700 text-neutral-200 font-bold text-xs rounded-xl border border-neutral-700 transition-all cursor-pointer"
                   >
                     Return to Lobby
                   </button>
@@ -2488,134 +2466,267 @@ export const OneOnOneArena: React.FC<OneOnOneArenaProps> = ({ user, onUpdateWall
             )}
           </div>
 
-          {/* Bottom Audio, Voice Taunts, Quick Emotes & Live Chat Bar */}
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4 relative">
-            {/* Quick Emotes & Voice Taunts */}
-            <div className="bg-neutral-900/90 border border-amber-500/30 rounded-2xl p-4 space-y-3 shadow-xl relative overflow-hidden">
-              {!isBetPlaced && (
-                <div className="absolute inset-0 bg-black/85 backdrop-blur-sm z-30 flex flex-col items-center justify-center text-center p-4">
-                  <div className="w-12 h-12 rounded-full bg-red-500/20 border border-red-500/40 flex items-center justify-center text-red-400 mb-2 animate-pulse">
-                    <LockIcon className="w-6 h-6" />
-                  </div>
-                  <h4 className="text-xs font-black text-red-400 uppercase tracking-wider">Voice Locked</h4>
-                  <p className="text-[10px] text-neutral-400 mt-1 max-w-[220px]">
-                    বেট প্লেস করে লাইভ ভয়েস ও টন্টবোর্ড আনলক করুন! (Place a bet to unlock Voice Chat & Soundboard!)
-                  </p>
-                </div>
-              )}
-
-              <div className={!isBetPlaced ? "filter blur-sm pointer-events-none" : ""}>
-                <div className="flex items-center justify-between">
-                  <span className="text-xs font-bold text-amber-400 uppercase tracking-wider flex items-center gap-1.5">
-                    <Mic className="w-4 h-4 text-amber-400" /> Live Voice & Quick Taunts
-                  </span>
+          {/* Docked Action & Betting Console (Bottom, shrink-0) */}
+          <div className="shrink-0 bg-neutral-950/95 border border-amber-500/30 rounded-xl p-1.5 sm:p-2 backdrop-blur-xl shadow-xl space-y-1.5 z-20">
+            {/* Quick Reactions & Emotes Strip */}
+            <div className="flex items-center justify-between gap-1">
+              <div className="flex items-center gap-1 overflow-x-auto no-scrollbar py-0.5">
+                <span className="text-[9px] uppercase font-bold text-neutral-500 mr-1 hidden xs:inline">React:</span>
+                {EMOTES.slice(0, 5).map((e) => (
                   <button
-                    onClick={() => setIsMicOn(!isMicOn)}
-                    className={`px-2.5 py-1 rounded-lg text-[10px] font-bold border transition-all flex items-center gap-1 ${
-                      isMicOn ? "bg-emerald-500/20 border-emerald-500/40 text-emerald-300" : "bg-red-500/20 border-red-500/40 text-red-300"
+                    key={e}
+                    onClick={() => handleSendEmote(e)}
+                    className="w-7 h-7 sm:w-8 sm:h-8 rounded-lg bg-neutral-900 border border-neutral-800 hover:border-amber-400 text-sm sm:text-base flex items-center justify-center hover:scale-110 active:scale-95 transition-all shrink-0 cursor-pointer"
+                  >
+                    {e}
+                  </button>
+                ))}
+              </div>
+
+              <div className="flex items-center gap-1.5 shrink-0">
+                <button
+                  onClick={() => {
+                    sound.playButtonClick();
+                    setIsCommsOpen(true);
+                    setCommsTab("taunts");
+                  }}
+                  className="px-2 py-1 rounded-lg bg-neutral-900 hover:bg-neutral-800 border border-neutral-700 text-amber-300 text-[10px] font-bold flex items-center gap-1 cursor-pointer"
+                >
+                  <Mic className="w-3 h-3 text-amber-400" />
+                  <span>Taunts</span>
+                </button>
+
+                <button
+                  onClick={() => {
+                    sound.playButtonClick();
+                    setIsCommsOpen(true);
+                    setCommsTab("chat");
+                    setUnreadChatCount(0);
+                  }}
+                  className="relative px-2 py-1 rounded-lg bg-neutral-900 hover:bg-neutral-800 border border-neutral-700 text-amber-300 text-[10px] font-bold flex items-center gap-1 cursor-pointer"
+                >
+                  <MessageSquare className="w-3 h-3 text-amber-400" />
+                  <span>Chat</span>
+                  {unreadChatCount > 0 && (
+                    <span className="w-2 h-2 rounded-full bg-red-500 animate-ping absolute -top-0.5 -right-0.5" />
+                  )}
+                </button>
+              </div>
+            </div>
+
+            {/* Betting Action Toolbar */}
+            {duel.status === "BETTING" && (() => {
+              const isUserDragon = duel.userRole === "DRAGON";
+              const userBet = isUserDragon ? duel.dragonPlayer.currentBet : duel.tigerPlayer.currentBet;
+              const needsCall = duel.currentRaise > userBet;
+              const callAmount = duel.currentRaise - userBet;
+              const isMyTurn = duel.turnUser === duel.userRole;
+
+              return (
+                <div className="space-y-1">
+                  {/* Turn Header */}
+                  <div className="flex items-center justify-between text-[10px] sm:text-xs font-bold px-0.5">
+                    <span className={isMyTurn ? "text-amber-300 animate-pulse flex items-center gap-1" : "text-neutral-400"}>
+                      {isMyTurn ? "👉 YOUR TURN TO ACT" : "⏳ WAITING FOR OPPONENT..."}
+                    </span>
+                    <span className="text-amber-400/80 font-mono text-[10px]">Raises: {duel.raisesCount}/3</span>
+                  </div>
+
+                  {/* 5-Button Action Grid */}
+                  <div className="grid grid-cols-5 gap-1 sm:gap-2">
+                    <button
+                      onClick={() => handleBettingAction("FOLD")}
+                      disabled={!isMyTurn}
+                      className={`py-1.5 sm:py-2 px-1 bg-red-950/85 hover:bg-red-900 border border-red-600/50 text-red-300 rounded-xl flex flex-col items-center justify-center leading-tight transition-all active:scale-95 cursor-pointer ${
+                        !isMyTurn ? "opacity-40 cursor-not-allowed" : ""
+                      }`}
+                    >
+                      <span className="font-extrabold text-[10px] sm:text-xs">FOLD</span>
+                      <span className="text-[7.5px] sm:text-[9px] text-red-400/80 font-normal">Forfeit</span>
+                    </button>
+
+                    {needsCall ? (
+                      <button
+                        onClick={() => handleBettingAction("CALL")}
+                        disabled={!isMyTurn}
+                        className={`py-1.5 sm:py-2 px-1 bg-gradient-to-r from-emerald-600 to-emerald-700 hover:from-emerald-500 hover:to-emerald-600 text-white rounded-xl shadow-md flex flex-col items-center justify-center leading-tight transition-all active:scale-95 cursor-pointer ${
+                          !isMyTurn ? "opacity-40 cursor-not-allowed" : ""
+                        }`}
+                      >
+                        <span className="font-extrabold text-[10px] sm:text-xs">CALL</span>
+                        <span className="text-[7.5px] sm:text-[9px] text-emerald-200 font-mono font-bold truncate">+{currencySymbol}{callAmount.toLocaleString()}</span>
+                      </button>
+                    ) : (
+                      <button
+                        onClick={() => handleBettingAction("CHECK")}
+                        disabled={!isMyTurn}
+                        className={`py-1.5 sm:py-2 px-1 bg-neutral-800 hover:bg-neutral-700 text-white rounded-xl border border-neutral-700 flex flex-col items-center justify-center leading-tight transition-all active:scale-95 cursor-pointer ${
+                          !isMyTurn ? "opacity-40 cursor-not-allowed" : ""
+                        }`}
+                      >
+                        <span className="font-extrabold text-[10px] sm:text-xs">CHECK</span>
+                        <span className="text-[7.5px] sm:text-[9px] text-neutral-400 font-normal">Pass</span>
+                      </button>
+                    )}
+
+                    <button
+                      onClick={() => handleBettingAction("RAISE_2X")}
+                      disabled={!isMyTurn || duel.raisesCount >= 3}
+                      className={`py-1.5 sm:py-2 px-1 bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-400 hover:to-amber-500 text-neutral-950 font-black rounded-xl shadow flex flex-col items-center justify-center leading-tight transition-all active:scale-95 cursor-pointer ${
+                        !isMyTurn || duel.raisesCount >= 3 ? "opacity-40 cursor-not-allowed" : ""
+                      }`}
+                    >
+                      <span className="font-black text-[10px] sm:text-xs">2X</span>
+                      <span className="text-[7.5px] sm:text-[9px] font-mono font-bold text-neutral-950/80 truncate">+{currencySymbol}{(duel.ante * 2).toLocaleString()}</span>
+                    </button>
+
+                    <button
+                      onClick={() => handleBettingAction("RAISE_3X")}
+                      disabled={!isMyTurn || duel.raisesCount >= 3}
+                      className={`py-1.5 sm:py-2 px-1 bg-gradient-to-r from-amber-400 via-orange-500 to-red-500 hover:from-amber-300 hover:to-red-400 text-neutral-950 font-black rounded-xl shadow flex flex-col items-center justify-center leading-tight transition-all active:scale-95 cursor-pointer ${
+                        !isMyTurn || duel.raisesCount >= 3 ? "opacity-40 cursor-not-allowed" : ""
+                      }`}
+                    >
+                      <span className="font-black text-[10px] sm:text-xs">3X</span>
+                      <span className="text-[7.5px] sm:text-[9px] font-mono font-bold text-neutral-950/80 truncate">+{currencySymbol}{(duel.ante * 3).toLocaleString()}</span>
+                    </button>
+
+                    <button
+                      onClick={() => handleBettingAction("ALL_IN")}
+                      disabled={!isMyTurn}
+                      className={`py-1.5 sm:py-2 px-1 bg-gradient-to-r from-red-600 via-rose-600 to-amber-600 hover:from-red-500 hover:to-amber-500 text-white font-black rounded-xl shadow-lg flex flex-col items-center justify-center leading-tight transition-all active:scale-95 cursor-pointer ${
+                        !isMyTurn ? "opacity-40 cursor-not-allowed" : ""
+                      }`}
+                    >
+                      <span className="font-black text-[10px] sm:text-xs">ALL-IN 💥</span>
+                      <span className="text-[7.5px] sm:text-[9px] text-amber-200 font-mono">Max Pot</span>
+                    </button>
+                  </div>
+                </div>
+              );
+            })()}
+
+            {/* Non-betting phase helper indicators */}
+            {duel.status === "PEEK_CARDS" && (
+              <div className="py-0.5 px-2 text-center text-[10px] text-amber-300 font-medium">
+                👆 কার্ডটি টিপে ধরে বা "Quick Reveal" চেপে দেখুন। এরপর বেটিং শুরু হবে!
+              </div>
+            )}
+
+            {duel.status === "SHOWDOWN" && (
+              <div className="py-0.5 px-2 text-center text-[10px] text-purple-300 font-medium animate-pulse">
+                ⚔️ শোডাউন চলছে! কার্ড উন্মোচন ও ফলাফল গণনা হচ্ছে...
+              </div>
+            )}
+          </div>
+
+          {/* Smart Floating Slide-Over Comms Drawer (Chat & Taunts) */}
+          {isCommsOpen && (
+            <div className="fixed sm:absolute right-2 bottom-14 sm:bottom-16 z-50 w-80 max-w-[calc(100vw-1rem)] bg-neutral-950/98 border border-amber-500/50 rounded-2xl p-3 shadow-2xl backdrop-blur-xl flex flex-col max-h-[360px] animate-in slide-in-from-bottom-3 duration-200">
+              <div className="flex items-center justify-between border-b border-neutral-800 pb-2 mb-2">
+                <div className="flex items-center gap-1.5">
+                  <button
+                    onClick={() => setCommsTab("chat")}
+                    className={`px-2.5 py-1 rounded-lg text-xs font-bold transition-all cursor-pointer ${
+                      commsTab === "chat" ? "bg-amber-500 text-neutral-950 font-black shadow" : "text-neutral-400 hover:text-white"
                     }`}
                   >
-                    {isMicOn ? <Mic className="w-3 h-3" /> : <MicOff className="w-3 h-3" />}
-                    <span>{isMicOn ? "Mic Active" : "Muted"}</span>
+                    💬 Match Chat
+                  </button>
+                  <button
+                    onClick={() => setCommsTab("taunts")}
+                    className={`px-2.5 py-1 rounded-lg text-xs font-bold transition-all cursor-pointer ${
+                      commsTab === "taunts" ? "bg-amber-500 text-neutral-950 font-black shadow" : "text-neutral-400 hover:text-white"
+                    }`}
+                  >
+                    🗣️ Taunts
                   </button>
                 </div>
+                <button
+                  onClick={() => setIsCommsOpen(false)}
+                  className="p-1 text-neutral-400 hover:text-white rounded-lg cursor-pointer"
+                >
+                  <X className="w-4 h-4" />
+                </button>
+              </div>
 
-                {/* Floating Quick Emotes Toolbar */}
-                <div className="mt-3">
-                  <label className="block text-[10px] uppercase font-bold text-neutral-400 mb-1.5">Quick Emote Reactions</label>
-                  <div className="flex items-center gap-2 overflow-x-auto no-scrollbar py-1">
-                    {EMOTES.map((e) => (
-                      <button
-                        key={e}
-                        onClick={() => handleSendEmote(e)}
-                        className="w-9 h-9 rounded-xl bg-neutral-950 border border-neutral-800 hover:border-amber-400 text-lg flex items-center justify-center hover:scale-110 active:scale-95 transition-all shrink-0"
-                      >
-                        {e}
-                      </button>
-                    ))}
+              {commsTab === "chat" ? (
+                <div className="flex-1 min-h-0 flex flex-col justify-between">
+                  <div ref={chatScrollRef} className="h-44 overflow-y-auto space-y-1.5 pr-1 text-xs custom-scrollbar">
+                    {chatLog.length === 0 ? (
+                      <div className="text-center text-neutral-500 text-[11px] py-6">
+                        কোন মেসেজ নেই। প্রতিপক্ষকে মেসেজ পাঠান!
+                      </div>
+                    ) : (
+                      chatLog.map((m) => (
+                        <div
+                          key={m.id}
+                          className={`p-1.5 rounded-lg text-xs ${
+                            m.sender === "SYSTEM"
+                              ? "bg-amber-500/10 border border-amber-500/20 text-amber-300 font-medium"
+                              : m.isUser
+                              ? "bg-amber-600/20 text-amber-200 border border-amber-500/30 ml-4"
+                              : "bg-neutral-900 text-neutral-300 border border-neutral-800 mr-4"
+                          }`}
+                        >
+                          <div className="flex items-center justify-between text-[9px] text-neutral-400 mb-0.5">
+                            <span className="font-bold">{m.sender}</span>
+                            <span>{m.timestamp}</span>
+                          </div>
+                          <div>{m.text}</div>
+                        </div>
+                      ))
+                    )}
                   </div>
-                </div>
 
-                {/* Recorded Voice Taunt Clips */}
-                <div className="space-y-1.5 mt-3">
-                  <label className="block text-[10px] uppercase font-bold text-neutral-400">Pre-Set Bengali Voice Taunts</label>
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-1.5">
+                  <form onSubmit={handleSendMessage} className="flex items-center gap-1.5 pt-2 border-t border-neutral-800 mt-1">
+                    <input
+                      type="text"
+                      value={chatInput}
+                      onChange={(e) => setChatInput(e.target.value)}
+                      placeholder="Type message..."
+                      className="flex-1 bg-neutral-900 border border-neutral-800 focus:border-amber-500 rounded-xl px-2.5 py-1.5 text-xs text-white placeholder-neutral-500 focus:outline-none"
+                      maxLength={100}
+                    />
+                    <button
+                      type="submit"
+                      className="p-1.5 bg-amber-500 hover:bg-amber-400 text-neutral-950 rounded-xl font-bold transition-all cursor-pointer"
+                    >
+                      <Send className="w-3.5 h-3.5" />
+                    </button>
+                  </form>
+                </div>
+              ) : (
+                <div className="flex-1 min-h-0 flex flex-col justify-between space-y-2">
+                  <div className="flex items-center justify-between pb-1 border-b border-neutral-800">
+                    <span className="text-[10px] text-neutral-400 uppercase font-bold">Bengali Voice Taunts</span>
+                    <button
+                      onClick={() => setIsMicOn(!isMicOn)}
+                      className={`px-2 py-0.5 rounded text-[9px] font-bold border transition-all flex items-center gap-1 cursor-pointer ${
+                        isMicOn ? "bg-emerald-500/20 border-emerald-500/40 text-emerald-300" : "bg-red-500/20 border-red-500/40 text-red-300"
+                      }`}
+                    >
+                      {isMicOn ? <Mic className="w-2.5 h-2.5" /> : <MicOff className="w-2.5 h-2.5" />}
+                      <span>{isMicOn ? "Voice Active" : "Muted"}</span>
+                    </button>
+                  </div>
+
+                  <div className="h-44 overflow-y-auto custom-scrollbar space-y-1.5 pr-0.5">
                     {VOICE_TAUNTS.map((t) => (
                       <button
                         key={t.id}
                         onClick={() => handleSendTaunt(t)}
-                        className="py-1.5 px-2.5 bg-neutral-950 hover:bg-neutral-850 border border-neutral-800 hover:border-amber-500/50 rounded-xl text-left text-[11px] font-medium text-amber-300 transition-all truncate"
+                        className="w-full py-1.5 px-2 bg-neutral-900 hover:bg-neutral-800 border border-neutral-800 hover:border-amber-500/50 rounded-lg text-left text-[11px] font-medium text-amber-300 transition-all truncate flex items-center justify-between cursor-pointer"
                       >
-                        {t.text}
+                        <span className="truncate">{t.text}</span>
+                        <Play className="w-3 h-3 text-amber-400 shrink-0 ml-1" />
                       </button>
                     ))}
                   </div>
                 </div>
-              </div>
-            </div>
-
-            {/* Live Chat Drawer */}
-            <div className="bg-neutral-900/90 border border-amber-500/30 rounded-2xl p-4 flex flex-col justify-between shadow-xl space-y-3 relative overflow-hidden">
-              {!isBetPlaced && (
-                <div className="absolute inset-0 bg-black/85 backdrop-blur-sm z-30 flex flex-col items-center justify-center text-center p-4">
-                  <div className="w-12 h-12 rounded-full bg-red-500/20 border border-red-500/40 flex items-center justify-center text-red-400 mb-2 animate-pulse">
-                    <LockIcon className="w-6 h-6" />
-                  </div>
-                  <h4 className="text-xs font-black text-red-400 uppercase tracking-wider">Chat Locked</h4>
-                  <p className="text-[10px] text-neutral-400 mt-1 max-w-[220px]">
-                    বেট প্লেস করে লাইভ চ্যাট রুম আনলক করুন! (Place a bet to unlock Live Chat!)
-                  </p>
-                </div>
               )}
-
-              <div className={`flex flex-col justify-between h-full ${!isBetPlaced ? "filter blur-sm pointer-events-none" : ""}`}>
-                <div className="flex items-center justify-between border-b border-neutral-800 pb-2">
-                  <span className="text-xs font-bold text-amber-400 uppercase tracking-wider flex items-center gap-1.5">
-                    <MessageSquare className="w-4 h-4 text-amber-400" /> Live Match Chat
-                  </span>
-                  <span className="text-[10px] text-neutral-500">WebSocket Live Sync</span>
-                </div>
-
-                <div ref={chatScrollRef} className="h-32 overflow-y-auto space-y-2 pr-1 no-scrollbar text-xs my-2">
-                  {chatLog.map((m) => (
-                    <div
-                      key={m.id}
-                      className={`p-2 rounded-xl text-xs ${
-                        m.sender === "SYSTEM"
-                          ? "bg-amber-500/10 border border-amber-500/20 text-amber-300 font-medium"
-                          : m.isUser
-                          ? "bg-amber-600/20 text-amber-200 border border-amber-500/30 ml-4"
-                          : "bg-neutral-950 text-neutral-300 border border-neutral-800 mr-4"
-                      }`}
-                    >
-                      <div className="flex items-center justify-between text-[10px] text-neutral-400 mb-0.5">
-                        <span className="font-bold">{m.sender}</span>
-                        <span>{m.timestamp}</span>
-                      </div>
-                      <div>{m.text}</div>
-                    </div>
-                  ))}
-                </div>
-
-                <form onSubmit={handleSendMessage} className="flex items-center gap-2 pt-2 border-t border-neutral-800">
-                  <input
-                    type="text"
-                    value={chatInput}
-                    onChange={(e) => setChatInput(e.target.value)}
-                    placeholder="Type message to opponent..."
-                    className="flex-1 bg-neutral-950 border border-neutral-800 focus:border-amber-500 rounded-xl px-3 py-2 text-xs text-white placeholder-neutral-600 focus:outline-none"
-                    maxLength={100}
-                  />
-                  <button
-                    type="submit"
-                    className="p-2 bg-amber-500 hover:bg-amber-400 text-neutral-950 rounded-xl font-bold transition-all"
-                  >
-                    <Send className="w-4 h-4" />
-                  </button>
-                </form>
-              </div>
             </div>
-          </div>
+          )}
         </div>
       )}
 

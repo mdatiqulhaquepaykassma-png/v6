@@ -48,6 +48,8 @@ export default function App() {
     typeof window !== "undefined" && window.innerWidth > window.innerHeight && window.innerHeight < 600
   );
 
+  const [isGuestMode, setIsGuestMode] = useState<boolean>(false);
+
   useEffect(() => {
     const handleResize = () => {
       const landscape = window.innerWidth > window.innerHeight && window.innerHeight < 600;
@@ -868,6 +870,8 @@ export default function App() {
         />
 
         <Navbar
+          isGuestMode={isGuestMode}
+          onToggleGuestMode={() => setIsGuestMode(prev => !prev)}
           user={user}
           activeTab={activeTab}
           setActiveTab={handleTabChange}
@@ -919,6 +923,14 @@ export default function App() {
           isLandscape={isLandscape}
         />
 
+        {/* Guest Mode Active Read-Only Banner */}
+        {isGuestMode && (
+          <div className="bg-purple-950/95 border-b border-purple-500/50 text-purple-200 px-3 py-2 text-center text-xs font-bold flex items-center justify-center gap-2 shadow-xl z-40 select-none">
+            <span className="w-2.5 h-2.5 rounded-full bg-purple-400 animate-ping shrink-0" />
+            <span>👁️ Guest Mode Active (Read-Only State): Betting components are disabled. Table results, leaderboards, and analytics remain fully visible.</span>
+          </div>
+        )}
+
         {/* Offline Network Status Badge */}
         <NetworkStatusBadge lang={lang} />
 
@@ -948,7 +960,7 @@ export default function App() {
               animate="animate"
               exit="exit"
               className={`w-full relative flex-1 h-full min-h-0 flex flex-col ${
-                activeTab === "game"
+                activeTab === "game" || activeTab === "p2p"
                   ? "max-w-none p-0 overflow-hidden"
                   : "max-w-7xl mx-auto px-1.5 sm:px-4 lg:px-8 py-1.5 sm:py-3 pb-36 sm:pb-28 overflow-y-auto overscroll-y-contain custom-scrollbar touch-pan-y"
               }`}
@@ -977,15 +989,19 @@ export default function App() {
                   lang={lang}
                   latency={latency}
                   onMeasurePing={measurePing}
+                  isGuestMode={isGuestMode}
                 />
               </motion.div>
             )}
             {activeTab === "p2p" && (
-              <P2PLobby
-                user={user}
-                onUpdateWallet={setUser}
-                onRequireLogin={() => setAuthScreenMode("signin")}
-              />
+              <div className="w-full h-full max-h-full flex flex-col flex-1 min-h-0 overflow-hidden">
+                <P2PLobby
+                  user={user}
+                  onUpdateWallet={setUser}
+                  onRequireLogin={() => setAuthScreenMode("signin")}
+                  isGuestMode={isGuestMode}
+                />
+              </div>
             )}
             {activeTab === "leaderboard" && (
               <Leaderboard
