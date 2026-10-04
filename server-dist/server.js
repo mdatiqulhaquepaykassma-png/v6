@@ -2,6 +2,7 @@
 import express from "express";
 import fs from "fs";
 import path from "path";
+import { fileURLToPath } from "url";
 import { createServer as createViteServer } from "vite";
 import { GoogleGenAI } from "@google/genai";
 import { createServer } from "http";
@@ -3989,8 +3990,10 @@ app.use((err, req, res, next) => {
   next(err);
 });
 async function startServer() {
-  console.log(`[BOOT] Environment: ${process.env.NODE_ENV || "development"}`);
-  if (process.env.NODE_ENV !== "production") {
+  const env = process.env.NODE_ENV || "development";
+  console.log(`[BOOT] Environment: ${env}`);
+  console.log(`[BOOT] Working Directory: ${process.cwd()}`);
+  if (env !== "production") {
     console.log("[BOOT] Starting with Vite Development Middleware...");
     const vite = await createViteServer({
       server: {
@@ -4001,7 +4004,20 @@ async function startServer() {
     });
     app.use(vite.middlewares);
   } else {
-    const distPath = path.join(process.cwd(), "dist");
+    const possibleDistPaths = [
+      path.join(process.cwd(), "dist"),
+      path.join(path.dirname(fileURLToPath(import.meta.url)), "dist"),
+      path.join(path.dirname(fileURLToPath(import.meta.url)), "..", "dist")
+    ];
+    let distPath = possibleDistPaths[0];
+    for (const p of possibleDistPaths) {
+      if (fs.existsSync(p)) {
+        distPath = p;
+        console.log(`[BOOT] Found dist directory at: ${p}`);
+        break;
+      }
+    }
+    console.log(`[BOOT] Serving production assets from: ${distPath}`);
     app.use(express.static(distPath, {
       maxAge: "7d",
       etag: true,
@@ -4020,11 +4036,11 @@ async function startServer() {
       res.setHeader("Expires", "0");
       const indexPath = path.join(distPath, "index.html");
       if (fs.existsSync(indexPath)) {
-        console.log(`[SERVER] Serving index.html for route: ${req.url}`);
         res.sendFile(indexPath);
       } else {
-        console.error(`[SERVER] index.html NOT FOUND at ${indexPath}. Falling back to emergency minimal HTML.`);
-        res.status(200).send("<!DOCTYPE html><html><head><title>Apex Casino</title><style>body{background:#02050b;color:#fff;display:flex;align-items:center;justify-content:center;height:100vh;margin:0;font-family:sans-serif;}</style></head><body><div style='text-align:center;'><h2>Apex Casino</h2><p>Initializing system... if this screen persists, please refresh.</p><script type='module' src='/src/main.tsx'></script></div></body></html>");
+        console.error(`[SERVER] CRITICAL: index.html NOT FOUND at ${indexPath}`);
+        console.error(`[SERVER] Checked paths: ${possibleDistPaths.join(", ")}`);
+        res.status(200).send("<!DOCTYPE html><html><head><title>Apex Casino</title><style>body{background:#02050b;color:#fff;display:flex;align-items:center;justify-content:center;height:100vh;margin:0;font-family:sans-serif;text-transform:uppercase;letter-spacing:1px;}</style></head><body><div style='text-align:center;'><h2>Apex Casino</h2><p style='color:#f59e0b;font-size:12px;'>System is updating or initializing...</p><p style='font-size:10px;opacity:0.6;'>Please refresh the page in a few moments.</p></div></body></html>");
       }
     });
   }

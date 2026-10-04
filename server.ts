@@ -6,6 +6,7 @@ if (typeof (globalThis as any).__dirname !== "undefined" && (globalThis as any).
 import express from "express";
 import fs from "fs";
 import path from "path";
+import { fileURLToPath } from "url";
 import { createServer as createViteServer } from "vite";
 import { GoogleGenAI } from "@google/genai";
 import { createServer } from "http";
@@ -45,7 +46,26 @@ function kickSession(sessionId: string, reason: string) {
 }
 
 app.set("trust proxy", 1);
-app.use(express.json());
+app.use(express.json({ limit: '10mb' }));
+app.use(express.urlencoded({ extended: true, limit: '10mb' }));
+
+// Request Logger for Debugging Connectivity
+app.use((req, res, next) => {
+  if (!req.url.includes("/assets/") && !req.url.includes(".svg")) {
+    console.log(`[REQ] ${req.method} ${req.url} - ${new Date().toISOString()}`);
+  }
+  
+  // Track long-running requests
+  const start = Date.now();
+  res.on('finish', () => {
+    const duration = Date.now() - start;
+    if (duration > 1500) {
+      console.warn(`[SLOW-REQ] ${req.method} ${req.url} took ${duration}ms`);
+    }
+  });
+  
+  next();
+});
 
 // Health Check Path for Render & Monitoring
 app.get("/api/health", (_req, res) => {
@@ -4741,11 +4761,10 @@ app.post("/api/ai-dealer", async (req, res) => {
       });
     }
 
-    const response = await ai.models.generateContent({
-      model: "gemini-2.5-flash",
-      contents: `You are an elite, charismatic Asian casino dealer for Dragon Tiger P2P. Provide one punchy, exciting casino sentence for players placing bets. Last round winner: ${safeWinner}. Keep it high energy.`,
-    });
-    res.json({ commentary: response.text });
+    const response = await ai.getGenerativeModel({
+      model: "gemini-1.5-flash",
+    }).generateContent(`You are an elite, charismatic Asian casino dealer for Dragon Tiger P2P. Provide one punchy, exciting casino sentence for players placing bets. Last round winner: ${safeWinner}. Keep it high energy.`);
+    res.json({ commentary: response.response.text() });
   } catch {
     res.json({
       commentary: "Cards are in play! Will the Dragon roar or will the Tiger strike? Place your bets!",
@@ -4770,8 +4789,12 @@ app.use((err: any, req: express.Request, res: express.Response, next: express.Ne
 // SERVER STARTUP & VITE INTEGRATION
 // ============================================================================
 async function startServer() {
-  console.log(`[BOOT] Environment: ${process.env.NODE_ENV || 'development'}`);
-  if (process.env.NODE_ENV !== "production") {
+  const hasDist = fs.existsSync(path.join(process.cwd(), "dist"));
+  const env = process.env.NODE_ENV || (hasDist ? "production" : "development");
+  console.log(`[BOOT] Detected Environment: ${env} (NODE_ENV: ${process.env.NODE_ENV || 'unset'}, hasDist: ${hasDist})`);
+  console.log(`[BOOT] Working Directory: ${process.cwd()}`);
+
+  if (env !== "production" && !hasDist) {
     console.log("[BOOT] Starting with Vite Development Middleware...");
     const vite = await createViteServer({
       server: {
@@ -4782,7 +4805,25 @@ async function startServer() {
     });
     app.use(vite.middlewares);
   } else {
-    const distPath = path.join(process.cwd(), "dist");
+    // Production Mode: Serve static files from 'dist'
+    // Attempt multiple path strategies to find the dist folder
+    const possibleDistPaths = [
+      path.join(process.cwd(), "dist"),
+      path.join(path.dirname(fileURLToPath(import.meta.url)), "dist"),
+      path.join(path.dirname(fileURLToPath(import.meta.url)), "..", "dist"),
+    ];
+
+    let distPath = possibleDistPaths[0];
+    for (const p of possibleDistPaths) {
+      if (fs.existsSync(p)) {
+        distPath = p;
+        console.log(`[BOOT] Found dist directory at: ${p}`);
+        break;
+      }
+    }
+
+    console.log(`[BOOT] Serving production assets from: ${distPath}`);
+
     app.use(express.static(distPath, {
       maxAge: "7d",
       etag: true,
@@ -4795,16 +4836,18 @@ async function startServer() {
         }
       },
     }));
+
     app.get("*", (req, res) => {
       res.setHeader("Cache-Control", "no-store, no-cache, must-revalidate, proxy-revalidate");
       res.setHeader("Pragma", "no-cache");
       res.setHeader("Expires", "0");
+      
       const indexPath = path.join(distPath, "index.html");
       if (fs.existsSync(indexPath)) {
-        console.log(`[SERVER] Serving index.html for route: ${req.url}`);
         res.sendFile(indexPath);
       } else {
-        console.error(`[SERVER] index.html NOT FOUND at ${indexPath}. Falling back to emergency minimal HTML.`);
+        console.error(`[SERVER] CRITICAL: index.html NOT FOUND at ${indexPath}`);
+        console.error(`[SERVER] Checked paths: ${possibleDistPaths.join(', ')}`);
         res.status(200).send("<!DOCTYPE html><html><head><title>Apex Casino</title><style>body{background:#02050b;color:#fff;display:flex;align-items:center;justify-content:center;height:100vh;margin:0;font-family:sans-serif;text-transform:uppercase;letter-spacing:1px;}</style></head><body><div style='text-align:center;'><h2>Apex Casino</h2><p style='color:#f59e0b;font-size:12px;'>System is updating or initializing...</p><p style='font-size:10px;opacity:0.6;'>Please refresh the page in a few moments.</p></div></body></html>");
       }
     });
@@ -4814,5 +4857,15 @@ async function startServer() {
     console.log(`Dragon Tiger P2P Server running on http://localhost:${PORT}`);
   });
 }
+
+// Process-level Error Catchers for Cloud Stability
+process.on("unhandledRejection", (reason, promise) => {
+  console.error("[PROCESS] Unhandled Rejection at:", promise, "reason:", reason);
+});
+
+process.on("uncaughtException", (err) => {
+  console.error("[PROCESS] Uncaught Exception:", err);
+  // Optional: Graceful shutdown or restart logic could go here
+});
 
 startServer();

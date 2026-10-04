@@ -5,11 +5,11 @@
   "type": "module",
   "scripts": {
     "dev": "tsx server.ts",
-    "build": "vite build && esbuild server.ts --bundle --platform=node --format=esm --packages=external --outfile=server-dist/server.js",
-    "build:client": "vite build",
-    "build:server": "esbuild server.ts --bundle --platform=node --format=esm --packages=external --outfile=server-dist/server.js",
-    "postinstall": "esbuild server.ts --bundle --platform=node --format=esm --packages=external --outfile=server-dist/server.js",
-    "start": "node --max-old-space-size=384 server-dist/server.js || tsx server.ts",
+    "build": "export NODE_ENV=production && vite build && esbuild server.ts --bundle --platform=node --format=esm --packages=external --outfile=server-dist/server.js",
+    "build:client": "export NODE_ENV=production && vite build",
+    "build:server": "export NODE_ENV=production && esbuild server.ts --bundle --platform=node --format=esm --packages=external --outfile=server-dist/server.js",
+    "postinstall": "export NODE_ENV=production && vite build && esbuild server.ts --bundle --platform=node --format=esm --packages=external --outfile=server-dist/server.js",
+    "start": "export NODE_ENV=production && (node --max-old-space-size=384 server-dist/server.js || tsx server.ts)",
     "clean": "rm -rf dist server-dist",
     "lint": "tsc --noEmit"
   },
