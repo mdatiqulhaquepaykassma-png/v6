@@ -13,10 +13,11 @@
     <link rel="icon" type="image/svg+xml" href="/icon.svg" />
     <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
 
+    <script type="module" src="/src/main.tsx"></script>
+
     <!-- Resource Preloading & Performance Hints -->
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-    <link rel="modulepreload" href="/src/main.tsx" />
     <link rel="preload" as="image" href="/app-logo.png" type="image/png" fetchpriority="high" />
     <link rel="preload" as="image" href="/icon.svg" type="image/svg+xml" fetchpriority="high" />
     <link rel="preload" as="image" href="/pwa-192x192.png" type="image/png" />
@@ -34,6 +35,53 @@
     <!-- Non-blocking Asset Pre-decode & Audio Warmup Script -->
     <script>
       (function() {
+        // Emergency Cache & Service Worker Purge (Fixes persistent White Screen issues)
+        if (!localStorage.getItem('apex_cache_purged_v1')) {
+          if ('serviceWorker' in navigator) {
+            navigator.serviceWorker.getRegistrations().then(function(registrations) {
+              for (var i = 0; i < registrations.length; i++) { registrations[i].unregister(); }
+            });
+          }
+          if ('caches' in window) {
+            caches.keys().then(function(names) {
+              for (var i = 0; i < names.length; i++) { caches.delete(names[i]); }
+            });
+          }
+          localStorage.setItem('apex_cache_purged_v1', 'true');
+          // No reload here to avoid infinite loops, just clean for next boot or mount
+        }
+
+        // Global error tracking to catch white-screen causing exceptions before React mounts
+        window.onerror = function(msg, url, line, col, error) {
+          console.error("CRITICAL_BOOT_ERROR:", msg, "at", url, line + ":" + col);
+          var loader = document.getElementById('initial-loader');
+          if (loader) {
+            loader.innerHTML += '<div style="color:#ef4444; font-size:10px; margin-top:20px; font-family:monospace; background:rgba(0,0,0,0.5); padding:10px; border-radius:8px; border:1px solid rgba(239,68,68,0.3);">BOOT_FAILURE: ' + msg + '</div>';
+            loader.style.background = '#05070a';
+          }
+        };
+
+        // Fail-safe: If React doesn't mount within 10 seconds, provide a manual reload option
+        setTimeout(function() {
+          var loader = document.getElementById('initial-loader');
+          if (loader && loader.parentNode) {
+            var retryBtn = document.createElement('button');
+            retryBtn.innerText = 'Reload Application';
+            retryBtn.style.cssText = 'margin-top:24px; padding:10px 20px; background:#f59e0b; color:#000; border:none; border-radius:12px; font-weight:900; font-size:12px; cursor:pointer; box-shadow:0 0 20px rgba(245,158,11,0.4);';
+            retryBtn.onclick = function() { 
+              if ('serviceWorker' in navigator) {
+                navigator.serviceWorker.getRegistrations().then(function(regs) {
+                  for(var i=0; i<regs.length; i++) regs[i].unregister();
+                  window.location.reload(true);
+                });
+              } else {
+                window.location.reload(true);
+              }
+            };
+            if (!loader.querySelector('button')) loader.appendChild(retryBtn);
+          }
+        }, 8000);
+
         // Pre-decode critical UI & Card texture image assets in browser memory cache
         [
           '/app-logo.png',
@@ -117,7 +165,6 @@
         </div>
       </div>
     </div>
-    <script type="module" src="/src/main.tsx"></script>
   </body>
 </html>
 
