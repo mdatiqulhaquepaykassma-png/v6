@@ -1,0 +1,8 @@
+{
+  "name": "v8 Dragon Tiger P2P",
+  "description": "High-stakes Dragon Tiger P2P betting game with real-time multiplayer rooms, live leaderboard, and secure wallet integration.",
+  "requestFramePermissions": [],
+  "majorCapabilities": [
+    "MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"
+  ]
+}

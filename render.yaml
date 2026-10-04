@@ -1,0 +1,27 @@
+services:
+  - type: web
+    name: dragon-tiger-p2p
+    runtime: node
+    region: singapore
+    plan: starter
+    branch: main
+    buildCommand: bun install && bun run build
+    startCommand: bun run start
+    healthCheckPath: /api/health
+    # Single instance required: state is currently in-memory/RAM
+    numInstances: 1
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: NPM_CONFIG_PRODUCTION
+        value: "false"
+      - key: NODE_VERSION
+        value: 22.12.0
+      - key: ADMIN_USERNAME
+        sync: false
+      - key: ADMIN_PASSWORD_HASH
+        sync: false
+      - key: ADMIN_SECRET
+        generateValue: true
+      - key: GEMINI_API_KEY
+        sync: false

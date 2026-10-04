@@ -1,0 +1,1146 @@
+@import "tailwindcss";
+
+html, body, #root {
+  background-color: #02050b !important;
+  color: #f5f5f5;
+  height: 100vh !important;
+  height: 100dvh !important;
+  width: 100vw !important;
+  margin: 0 !important;
+  padding: 0 !important;
+  overflow: hidden !important;
+  touch-action: manipulation;
+  overscroll-behavior: none;
+  -webkit-overflow-scrolling: touch;
+}
+
+@layer utilities {
+  .no-scrollbar::-webkit-scrollbar {
+    display: none;
+  }
+  .no-scrollbar {
+    -ms-overflow-style: none;
+    scrollbar-width: none;
+  }
+  
+  .smart-glass {
+    @apply bg-neutral-900/40 backdrop-blur-3xl border border-white/5 shadow-[0_8px_32px_rgba(0,0,0,0.4)];
+  }
+
+  .gentle-glow-dragon {
+    @apply shadow-[0_0_20px_rgba(139,92,246,0.15)] border-violet-500/20;
+  }
+
+  .gentle-glow-tiger {
+    @apply shadow-[0_0_20px_rgba(34,211,238,0.15)] border-cyan-500/20;
+  }
+
+  .minimal-card-slot {
+    @apply bg-neutral-950/40 border border-white/5 rounded-[32px] transition-all duration-500;
+  }
+
+  .zen-gradient {
+    @apply bg-gradient-to-b from-[#0a0a0a] via-[#111111] to-[#0a0a0a];
+  }
+
+  .accent-violet {
+    @apply text-violet-400 drop-shadow-[0_0_8px_rgba(139,92,246,0.4)];
+  }
+
+  .accent-cyan {
+    @apply text-cyan-400 drop-shadow-[0_0_8px_rgba(34,211,238,0.4)];
+  }
+}
+
+@keyframes float {
+  0%, 100% { transform: translateY(0); }
+  50% { transform: translateY(-10px); }
+}
+
+@keyframes pulse-soft {
+  0%, 100% { opacity: 1; transform: scale(1); }
+  50% { opacity: 0.8; transform: scale(1.02); }
+}
+
+@keyframes scroll-gold {
+  0% { background-position: 0% 50%; }
+  50% { background-position: 100% 50%; }
+  100% { background-position: 0% 50%; }
+}
+
+@keyframes holographic-scan {
+  0% { transform: translateY(-100%); opacity: 0; }
+  50% { opacity: 0.1; }
+  100% { transform: translateY(100%); opacity: 0; }
+}
+
+@keyframes energy-pulse {
+  0%, 100% { opacity: 0.3; filter: blur(20px); }
+  50% { opacity: 0.6; filter: blur(40px); }
+}
+
+@keyframes god-rays {
+  0% { transform: rotate(-45deg) translateX(-100%); opacity: 0; }
+  50% { opacity: 0.2; }
+  100% { transform: rotate(-45deg) translateX(100%); opacity: 0; }
+}
+
+@keyframes scanline {
+  0% { transform: translateY(0); }
+  100% { transform: translateY(520px); }
+}
+
+@keyframes dealer-arm-swipe {
+  0% { transform: translateX(-50%) translateY(0) rotate(0) scale(1); }
+  5% { transform: translateX(-52%) translateY(5px) rotate(-2deg) scale(1.02); } /* Prep */
+  10% { transform: translateX(-60%) translateY(15px) rotate(-5deg) scale(1); } /* Reach shoe */
+  15% { transform: translateX(-60%) translateY(15px) rotate(-5deg) scale(0.98); } /* Grab Card */
+  30% { transform: translateX(-85%) translateY(140px) rotate(-20deg) scale(1.05); } /* Flick Left */
+  45% { transform: translateX(-50%) translateY(0) rotate(0) scale(1); } /* Back to center */
+  55% { transform: translateX(-40%) translateY(15px) rotate(5deg) scale(1.02); } /* Reach shoe */
+  60% { transform: translateX(-40%) translateY(15px) rotate(5deg) scale(0.98); } /* Grab Card */
+  75% { transform: translateX(-15%) translateY(140px) rotate(20deg) scale(1.05); } /* Flick Right */
+  90% { transform: translateX(-50%) translateY(0) rotate(0) scale(1); }
+  100% { transform: translateX(-50%) translateY(0) rotate(0) scale(1); }
+}
+
+@keyframes deck-shuffle {
+  0% { transform: translateX(-50%) rotate(0deg) scale(1); filter: brightness(1); }
+  10% { transform: translateX(-53%) rotate(-2deg) scale(1.05); filter: brightness(1.2); }
+  20% { transform: translateX(-47%) rotate(2deg) scale(0.95); filter: brightness(0.8); }
+  30% { transform: translateX(-52%) rotate(-3deg) scale(1.1); filter: brightness(1.3); }
+  40% { transform: translateX(-48%) rotate(3deg) scale(0.9); filter: brightness(0.7); }
+  50% { transform: translateX(-51%) rotate(-1deg) scale(1.02); filter: brightness(1.1); }
+  60% { transform: translateX(-49%) rotate(1deg) scale(0.98); filter: brightness(0.9); }
+  70% { transform: translateX(-50.5%) rotate(-0.5deg) scale(1.01); filter: brightness(1.05); }
+  80% { transform: translateX(-49.5%) rotate(0.5deg) scale(0.99); filter: brightness(0.95); }
+  90% { transform: translateX(-50%) rotate(0deg) scale(1.02); filter: brightness(1); }
+  100% { transform: translateX(-50%) rotate(0deg) scale(1); filter: brightness(1); }
+}
+
+@keyframes status-glow {
+  0%, 100% { filter: drop-shadow(0 0 10px rgba(16,185,129,0.3)); transform: scale(1); }
+  50% { filter: drop-shadow(0 0 25px rgba(16,185,129,0.6)); transform: scale(1.02); }
+}
+
+@keyframes card-flick-left {
+  0% { transform: translateX(0) translateY(0) rotate(0) scale(1); opacity: 1; }
+  50% { transform: translateX(-40px) translateY(-20px) rotate(-15deg) scale(0.8); opacity: 0.8; }
+  100% { transform: translateX(0) translateY(0) rotate(0) scale(1); opacity: 1; }
+}
+
+@keyframes card-flick-right {
+  0% { transform: translateX(0) translateY(0) rotate(0) scale(1); opacity: 1; }
+  50% { transform: translateX(40px) translateY(-20px) rotate(15deg) scale(0.8); opacity: 0.8; }
+  100% { transform: translateX(0) translateY(0) rotate(0) scale(1); opacity: 1; }
+}
+
+@keyframes spotlight-rotate {
+  0% { transform: rotate(0deg); }
+  100% { transform: rotate(360deg); }
+}
+
+.animate-spotlight-sweep {
+  animation: spotlight-rotate 20s linear infinite;
+}
+
+.table-spotlight-beam {
+  background: conic-gradient(
+    from 0deg at 50% 50%,
+    transparent 0deg,
+    rgba(245, 158, 11, 0.05) 35deg,
+    rgba(255, 255, 255, 0.12) 55deg,
+    rgba(245, 158, 11, 0.07) 75deg,
+    transparent 110deg,
+    transparent 180deg,
+    rgba(56, 189, 248, 0.04) 215deg,
+    rgba(255, 255, 255, 0.1) 235deg,
+    rgba(56, 189, 248, 0.06) 255deg,
+    transparent 290deg,
+    transparent 360deg
+  );
+}
+
+/* ========================================================================== */
+/* DEALER AVATAR 3D-CSS ANIMATIONS: BREATHING, DECK SHUFFLE & SHOE CHECK */
+/* ========================================================================== */
+
+/* Continuous subtle human respiratory cycle in 3D perspective */
+@keyframes dealer-3d-breathe {
+  0%, 100% {
+    transform: perspective(700px) rotateX(0deg) rotateY(0deg) translateY(0) scale3d(1, 1, 1);
+  }
+  35% {
+    transform: perspective(700px) rotateX(-2.5deg) rotateY(0.4deg) translateY(-2px) scale3d(1.025, 1.03, 1.02);
+  }
+  50% {
+    transform: perspective(700px) rotateX(-2.8deg) rotateY(0deg) translateY(-2.5px) scale3d(1.03, 1.035, 1.025);
+  }
+  78% {
+    transform: perspective(700px) rotateX(1deg) rotateY(-0.4deg) translateY(0.5px) scale3d(0.995, 0.995, 0.995);
+  }
+}
+
+/* Head micro-bobbing and counter-breath */
+@keyframes dealer-head-breathe {
+  0%, 100% {
+    transform: translateY(0px) rotateX(0deg) rotateZ(0deg);
+  }
+  38% {
+    transform: translateY(-1.2px) rotateX(-1.5deg) rotateZ(0.4deg);
+  }
+  75% {
+    transform: translateY(0.6px) rotateX(0.8deg) rotateZ(-0.4deg);
+  }
+}
+
+/* Dealer reaching towards shoe on the left with 3D wrist extension */
+@keyframes dealer-shoe-reach {
+  0% {
+    transform: translate3d(0, 0, 0) rotate(0deg);
+  }
+  20% {
+    transform: translate3d(-14px, 6px, 12px) rotate(-14deg);
+  }
+  50% {
+    transform: translate3d(-20px, 8px, 18px) rotate(-18deg);
+  }
+  75% {
+    transform: translate3d(-12px, 4px, 10px) rotate(-10deg);
+  }
+  100% {
+    transform: translate3d(0, 0, 0) rotate(0deg);
+  }
+}
+
+/* 3D Riffle shuffle left card packet */
+@keyframes deck-riffle-left {
+  0%, 100% {
+    transform: translate3d(0, 0, 0) rotateZ(0deg) rotateY(0deg);
+  }
+  20% {
+    transform: translate3d(-8px, -4px, 8px) rotateZ(-14deg) rotateY(-18deg);
+  }
+  45% {
+    transform: translate3d(-3px, -1px, 4px) rotateZ(-6deg) rotateY(-8deg);
+  }
+  65% {
+    transform: translate3d(-1px, 0, 2px) rotateZ(-2deg) rotateY(-2deg);
+  }
+}
+
+/* 3D Riffle shuffle right card packet */
+@keyframes deck-riffle-right {
+  0%, 100% {
+    transform: translate3d(0, 0, 0) rotateZ(0deg) rotateY(0deg);
+  }
+  20% {
+    transform: translate3d(8px, -4px, 8px) rotateZ(14deg) rotateY(18deg);
+  }
+  45% {
+    transform: translate3d(3px, -1px, 4px) rotateZ(6deg) rotateY(8deg);
+  }
+  65% {
+    transform: translate3d(1px, 0, 2px) rotateZ(2deg) rotateY(2deg);
+  }
+}
+
+/* Rapid card interlace flutter */
+@keyframes card-riffle-flutter {
+  0%, 100% {
+    opacity: 0.7;
+    transform: scaleY(1) translateY(0);
+  }
+  50% {
+    opacity: 1;
+    transform: scaleY(1.15) translateY(-2px);
+  }
+}
+
+/* Optical shoe inspection gleam sweep */
+@keyframes shoe-optical-scan {
+  0% {
+    opacity: 0;
+    transform: scaleX(0.2) translateX(-20px);
+  }
+  40% {
+    opacity: 0.9;
+    transform: scaleX(1) translateX(0px);
+  }
+  75% {
+    opacity: 0.8;
+    transform: scaleX(1.1) translateX(4px);
+  }
+  100% {
+    opacity: 0;
+    transform: scaleX(0.2) translateX(20px);
+  }
+}
+
+.animate-dealer-breathe {
+  animation: dealer-3d-breathe 4s ease-in-out infinite;
+  transform-style: preserve-3d;
+}
+
+.animate-dealer-head-breathe {
+  animation: dealer-head-breathe 4s ease-in-out infinite;
+  transform-style: preserve-3d;
+}
+
+/* ========================================================================== */
+/* 3D-CSS EYE BLINKING & TRACKING GAZE KEYFRAMES */
+/* ========================================================================== */
+
+/* Natural 3D Eyelid Single Blink Cycle */
+@keyframes eyelid-3d-blink-natural {
+  0%, 93%, 100% {
+    transform: scaleY(0) rotateX(0deg);
+    opacity: 0;
+  }
+  95% {
+    transform: scaleY(1.05) rotateX(-5deg);
+    opacity: 1;
+  }
+  97% {
+    transform: scaleY(1) rotateX(0deg);
+    opacity: 1;
+  }
+  98.5% {
+    transform: scaleY(0.2) rotateX(0deg);
+    opacity: 0.5;
+  }
+}
+
+/* Double-Blink Flutter (Realistic conversational micro-blink) */
+@keyframes eyelid-3d-blink-double {
+  0%, 88%, 100% {
+    transform: scaleY(0);
+    opacity: 0;
+  }
+  90% {
+    transform: scaleY(1);
+    opacity: 1;
+  }
+  92% {
+    transform: scaleY(0.15);
+    opacity: 0.4;
+  }
+  94% {
+    transform: scaleY(1);
+    opacity: 1;
+  }
+  96% {
+    transform: scaleY(0);
+    opacity: 0;
+  }
+}
+
+/* Languid Slow Blink during deep breath */
+@keyframes eyelid-3d-blink-languid {
+  0%, 86%, 100% {
+    transform: scaleY(0);
+    opacity: 0;
+  }
+  90% {
+    transform: scaleY(1.02);
+    opacity: 1;
+  }
+  93% {
+    transform: scaleY(0.95);
+    opacity: 1;
+  }
+  96% {
+    transform: scaleY(0.3);
+    opacity: 0.6;
+  }
+  98% {
+    transform: scaleY(0);
+    opacity: 0;
+  }
+}
+
+/* Micro-saccadic eye pupil glint */
+@keyframes eye-pupil-glint {
+  0%, 100% {
+    filter: drop-shadow(0 0 1px rgba(255,255,255,0.8));
+  }
+  50% {
+    filter: drop-shadow(0 0 2.5px rgba(251,191,36,0.9));
+  }
+}
+
+.animate-eyelid-natural {
+  animation: eyelid-3d-blink-natural 3.8s ease-in-out infinite;
+  transform-origin: 50% 36px;
+  transform-style: preserve-3d;
+}
+
+.animate-eyelid-double {
+  animation: eyelid-3d-blink-double 4.6s ease-in-out infinite;
+  transform-origin: 50% 36px;
+  transform-style: preserve-3d;
+}
+
+.animate-eyelid-languid {
+  animation: eyelid-3d-blink-languid 5.4s ease-in-out infinite;
+  transform-origin: 50% 36px;
+  transform-style: preserve-3d;
+}
+
+.animate-pupil-glint {
+  animation: eye-pupil-glint 2.5s ease-in-out infinite;
+}
+
+/* ========================================================================== */
+/* CANDLELIGHT FLICKER ANIMATIONS (SYNCED WITH 4S DEALER RESPIRATORY CYCLE) */
+/* ========================================================================== */
+
+@keyframes candlelight-flicker {
+  0%, 100% {
+    opacity: 0.42;
+    filter: drop-shadow(0 0 16px rgba(245, 158, 11, 0.4)) brightness(1);
+    transform: scale(1) translateY(0);
+  }
+  14% {
+    opacity: 0.54;
+    filter: drop-shadow(0 0 24px rgba(245, 158, 11, 0.55)) brightness(1.08);
+    transform: scale(1.015) translateY(-0.5px);
+  }
+  22% {
+    opacity: 0.45;
+    filter: drop-shadow(0 0 18px rgba(217, 119, 6, 0.42)) brightness(0.98);
+    transform: scale(0.995);
+  }
+  38% {
+    /* Synchronized with dealer Inhale peak expansion */
+    opacity: 0.68;
+    filter: drop-shadow(0 0 38px rgba(251, 191, 36, 0.72)) brightness(1.16);
+    transform: scale(1.045) translateY(-2px);
+  }
+  48% {
+    /* Micro draft shimmer during deep inhalation */
+    opacity: 0.59;
+    filter: drop-shadow(0 0 28px rgba(245, 158, 11, 0.6)) brightness(1.06);
+    transform: scale(1.03) translateY(-1.5px);
+  }
+  54% {
+    /* Respiration apex */
+    opacity: 0.72;
+    filter: drop-shadow(0 0 42px rgba(251, 191, 36, 0.78)) brightness(1.18);
+    transform: scale(1.055) translateY(-2.5px);
+  }
+  72% {
+    /* Exhale settling */
+    opacity: 0.52;
+    filter: drop-shadow(0 0 22px rgba(245, 158, 11, 0.5)) brightness(1.03);
+    transform: scale(1.01) translateY(-0.5px);
+  }
+  80% {
+    /* Subtle flame draft tremor */
+    opacity: 0.40;
+    filter: drop-shadow(0 0 14px rgba(217, 119, 6, 0.36)) brightness(0.95);
+    transform: scale(0.985);
+  }
+  90% {
+    opacity: 0.48;
+    filter: drop-shadow(0 0 20px rgba(245, 158, 11, 0.46)) brightness(1.04);
+    transform: scale(1);
+  }
+}
+
+@keyframes candlelight-flicker-ambient {
+  0%, 100% {
+    opacity: 0.28;
+    transform: scale(1);
+  }
+  38% {
+    opacity: 0.48;
+    transform: scale(1.06);
+  }
+  52% {
+    opacity: 0.54;
+    transform: scale(1.08);
+  }
+  78% {
+    opacity: 0.32;
+    transform: scale(0.98);
+  }
+}
+
+@keyframes candlelight-sconce-flame {
+  0%, 100% {
+    transform: scale(1) rotate(0deg);
+    opacity: 0.85;
+  }
+  15% {
+    transform: scale(1.08, 0.95) rotate(-1.5deg);
+    opacity: 0.95;
+  }
+  35% {
+    transform: scale(1.15, 1.1) rotate(1deg);
+    opacity: 1;
+  }
+  55% {
+    transform: scale(1.2, 1.15) rotate(0deg);
+    opacity: 1;
+  }
+  75% {
+    transform: scale(0.95, 1.02) rotate(-2deg);
+    opacity: 0.8;
+  }
+  88% {
+    transform: scale(1.04, 0.98) rotate(1.5deg);
+    opacity: 0.9;
+  }
+}
+
+.animate-candlelight-flicker {
+  animation: candlelight-flicker 4s ease-in-out infinite;
+}
+
+.animate-candlelight-ambient {
+  animation: candlelight-flicker-ambient 4s ease-in-out infinite;
+}
+
+.animate-candlelight-flame {
+  animation: candlelight-sconce-flame 4s ease-in-out infinite;
+}
+
+/* ========================================================================== */
+/* FLOATING DUST PARTICLES & CANDLELIGHT REFLECTION KEYFRAMES */
+/* ========================================================================== */
+
+@keyframes dust-drift-slow {
+  0% {
+    transform: translate3d(0, 0, 0) scale(0.8);
+    opacity: 0.1;
+  }
+  20% {
+    transform: translate3d(18px, -40px, 0) scale(1.1);
+    opacity: 0.55;
+  }
+  45% {
+    transform: translate3d(-12px, -85px, 0) scale(1);
+    opacity: 0.35;
+  }
+  70% {
+    transform: translate3d(22px, -135px, 0) scale(1.15);
+    opacity: 0.65;
+  }
+  100% {
+    transform: translate3d(0, -185px, 0) scale(0.7);
+    opacity: 0;
+  }
+}
+
+@keyframes dust-drift-gentle {
+  0% {
+    transform: translate3d(0, 0, 0) scale(0.7);
+    opacity: 0;
+  }
+  25% {
+    transform: translate3d(-24px, -35px, 0) scale(1);
+    opacity: 0.45;
+  }
+  50% {
+    transform: translate3d(16px, -80px, 0) scale(1.2);
+    opacity: 0.75;
+  }
+  75% {
+    transform: translate3d(-18px, -130px, 0) scale(0.95);
+    opacity: 0.4;
+  }
+  100% {
+    transform: translate3d(8px, -180px, 0) scale(0.6);
+    opacity: 0;
+  }
+}
+
+@keyframes dust-drift-sway {
+  0% {
+    transform: translate3d(0, 0, 0) rotate(0deg);
+    opacity: 0.1;
+  }
+  30% {
+    transform: translate3d(28px, -50px, 0) rotate(45deg);
+    opacity: 0.6;
+  }
+  60% {
+    transform: translate3d(-20px, -105px, 0) rotate(90deg);
+    opacity: 0.4;
+  }
+  85% {
+    transform: translate3d(15px, -155px, 0) rotate(135deg);
+    opacity: 0.7;
+  }
+  100% {
+    transform: translate3d(-5px, -200px, 0) rotate(180deg);
+    opacity: 0;
+  }
+}
+
+@keyframes candlelight-mote-shimmer {
+  0%, 100% {
+    filter: drop-shadow(0 0 2px rgba(245, 158, 11, 0.4)) brightness(1);
+  }
+  38% {
+    filter: drop-shadow(0 0 6px rgba(251, 191, 36, 0.9)) brightness(1.4);
+  }
+  54% {
+    filter: drop-shadow(0 0 8px rgba(251, 191, 36, 1)) brightness(1.6);
+  }
+  75% {
+    filter: drop-shadow(0 0 3px rgba(217, 119, 6, 0.5)) brightness(1.05);
+  }
+}
+
+.animate-dust-slow {
+  animation: dust-drift-slow 14s ease-in-out infinite;
+}
+
+.animate-dust-gentle {
+  animation: dust-drift-gentle 18s ease-in-out infinite;
+}
+
+.animate-dust-sway {
+  animation: dust-drift-sway 22s ease-in-out infinite;
+}
+
+.animate-mote-shimmer {
+  animation: candlelight-mote-shimmer 4s ease-in-out infinite;
+}
+
+/* ========================================================================== */
+/* PHYSICAL CASINO TABLE PARALLAX TEXTURE LAYERS (CSS TRANSFORM VARIABLES) */
+/* ========================================================================== */
+
+.table-parallax-container {
+  perspective: 1200px;
+  transform-style: preserve-3d;
+}
+
+.table-layer-pedestal {
+  transform: translate3d(calc(var(--tbl-parallax-x, 0px) * 0.25), calc(var(--tbl-parallax-y, 0px) * 0.25), -20px)
+    rotateX(calc(var(--tbl-tilt-x, 0deg) * 0.3))
+    rotateY(calc(var(--tbl-tilt-y, 0deg) * 0.3));
+  transition: transform 0.15s cubic-bezier(0.2, 0.8, 0.4, 1);
+  transform-style: preserve-3d;
+}
+
+.table-layer-rim {
+  transform: translate3d(calc(var(--tbl-parallax-x, 0px) * 0.5), calc(var(--tbl-parallax-y, 0px) * 0.5), 0px)
+    rotateX(calc(var(--tbl-tilt-x, 0deg) * 0.55))
+    rotateY(calc(var(--tbl-tilt-y, 0deg) * 0.55));
+  transition: transform 0.15s cubic-bezier(0.2, 0.8, 0.4, 1);
+  transform-style: preserve-3d;
+}
+
+.table-layer-felt {
+  transform: translate3d(calc(var(--tbl-parallax-x, 0px) * 0.8), calc(var(--tbl-parallax-y, 0px) * 0.8), 16px)
+    rotateX(calc(var(--tbl-tilt-x, 0deg) * 0.8))
+    rotateY(calc(var(--tbl-tilt-y, 0deg) * 0.8));
+  transition: transform 0.15s cubic-bezier(0.2, 0.8, 0.4, 1);
+  transform-style: preserve-3d;
+}
+
+.table-layer-cards-ui {
+  transform: translate3d(calc(var(--tbl-parallax-x, 0px) * 1.15), calc(var(--tbl-parallax-y, 0px) * 1.15), 32px)
+    rotateX(var(--tbl-tilt-x, 0deg))
+    rotateY(var(--tbl-tilt-y, 0deg));
+  transition: transform 0.15s cubic-bezier(0.2, 0.8, 0.4, 1);
+  transform-style: preserve-3d;
+}
+
+/* ========================================================================== */
+/* CARD FLIGHT DYNAMIC DROP-SHADOW (DEPTH-OF-FIELD EFFECT) */
+/* ========================================================================== */
+
+@keyframes card-depth-of-field {
+  0% {
+    transform: translateZ(52px) scale(1.08) translateY(-25px);
+    box-shadow: 0 45px 65px -8px rgba(0, 0, 0, 0.9), 0 28px 40px -5px rgba(0, 0, 0, 0.75), 0 0 25px rgba(251, 191, 36, 0.4);
+    filter: drop-shadow(0 38px 28px rgba(0, 0, 0, 0.8));
+  }
+  35% {
+    transform: translateZ(36px) scale(1.05) translateY(-14px);
+    box-shadow: 0 32px 48px -6px rgba(0, 0, 0, 0.92), 0 18px 28px -4px rgba(0, 0, 0, 0.8);
+    filter: drop-shadow(0 24px 20px rgba(0, 0, 0, 0.88));
+  }
+  70% {
+    transform: translateZ(16px) scale(1.02) translateY(-4px);
+    box-shadow: 0 16px 26px -4px rgba(0, 0, 0, 0.95), 0 8px 14px -2px rgba(0, 0, 0, 0.85);
+    filter: drop-shadow(0 10px 10px rgba(0, 0, 0, 0.92));
+  }
+  100% {
+    transform: translateZ(2px) scale(1) translateY(0);
+    box-shadow: 0 6px 18px -2px rgba(0, 0, 0, 0.98), 0 2px 6px -1px rgba(0, 0, 0, 0.9), 0 0 2px rgba(0, 0, 0, 1);
+    filter: drop-shadow(0 4px 6px rgba(0, 0, 0, 0.95));
+  }
+}
+
+.animate-card-depth-flight {
+  animation: card-depth-of-field 0.65s cubic-bezier(0.22, 1, 0.36, 1) forwards;
+  transform-style: preserve-3d;
+}
+
+/* ========================================================================== */
+/* CASINO TABLE FELT WEAR & TEAR TEXTURE & ABRASION OVERLAY */
+/* ========================================================================== */
+
+.felt-wear-tear-overlay {
+  background-image: radial-gradient(circle at 50% 50%, rgba(255, 255, 255, 0.03) 0%, transparent 80%),
+    radial-gradient(circle at 25% 48%, rgba(255, 255, 255, 0.07) 0%, rgba(255, 255, 255, 0.02) 40%, transparent 70%),
+    radial-gradient(circle at 75% 48%, rgba(255, 255, 255, 0.07) 0%, rgba(255, 255, 255, 0.02) 40%, transparent 70%),
+    radial-gradient(circle at 50% 25%, rgba(255, 255, 255, 0.05) 0%, transparent 55%),
+    url("data:image/svg+xml,%3Csvg viewBox='0 0 200 200' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noiseFilter'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='3' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noiseFilter)' opacity='0.09'/%3E%3C/svg%3E");
+  mix-blend-mode: soft-light;
+}
+
+.card-slot-wear-footprint {
+  background: radial-gradient(ellipse at 50% 50%, rgba(255, 255, 255, 0.09) 0%, rgba(255, 255, 255, 0.04) 45%, rgba(0, 0, 0, 0.25) 75%, transparent 100%);
+  mix-blend-mode: overlay;
+}
+
+/* ========================================================================== */
+/* DEALER 'SHUSH' / 'CALM' GESTURE (HIGH BETTING VOLUME SPIKE) */
+/* ========================================================================== */
+
+@keyframes dealer-shush-arm {
+  0% {
+    transform: translateY(22px) rotate(35deg);
+    opacity: 0;
+  }
+  18% {
+    transform: translateY(-10px) rotate(-8deg);
+    opacity: 1;
+  }
+  35% {
+    transform: translateY(-16px) rotate(-12deg);
+    opacity: 1;
+  }
+  50% {
+    transform: translateY(-13px) rotate(-10deg);
+    opacity: 1;
+  }
+  68% {
+    transform: translateY(-16px) rotate(-12deg);
+    opacity: 1;
+  }
+  85% {
+    transform: translateY(-4px) rotate(6deg);
+    opacity: 0.9;
+  }
+  100% {
+    transform: translateY(22px) rotate(35deg);
+    opacity: 0;
+  }
+}
+
+@keyframes dealer-calm-palms {
+  0% {
+    transform: translateY(18px) scale(0.9);
+    opacity: 0;
+  }
+  22% {
+    transform: translateY(-7px) scale(1.05);
+    opacity: 1;
+  }
+  50% {
+    transform: translateY(-3px) scale(1);
+    opacity: 1;
+  }
+  78% {
+    transform: translateY(-7px) scale(1.05);
+    opacity: 1;
+  }
+  100% {
+    transform: translateY(18px) scale(0.9);
+    opacity: 0;
+  }
+}
+
+.animate-dealer-shush {
+  animation: dealer-shush-arm 3.2s cubic-bezier(0.25, 1, 0.5, 1) forwards;
+}
+
+.animate-dealer-calm {
+  animation: dealer-calm-palms 3.2s cubic-bezier(0.25, 1, 0.5, 1) forwards;
+}
+
+/* ========================================================================== */
+/* DYNAMIC GAME STATE TABLE TINT OVERLAYS (WARM AMBER, COOL BLUE, DEEP RED) */
+/* Optimized: zero scale or layout shifts to completely prevent overlay jittering */
+/* ========================================================================== */
+
+@keyframes state-tint-pulse-amber {
+  0%, 100% {
+    opacity: 0.75;
+  }
+  50% {
+    opacity: 0.95;
+  }
+}
+
+@keyframes state-tint-pulse-amber-urgent {
+  0%, 100% {
+    opacity: 0.8;
+  }
+  50% {
+    opacity: 1;
+  }
+}
+
+@keyframes state-tint-pulse-blue {
+  0%, 100% {
+    opacity: 0.75;
+  }
+  50% {
+    opacity: 0.95;
+  }
+}
+
+@keyframes state-tint-pulse-red {
+  0%, 100% {
+    opacity: 0.8;
+  }
+  50% {
+    opacity: 1;
+  }
+}
+
+@keyframes laser-dealing-sweep {
+  0% {
+    transform: translateX(-100%) skewX(-20deg);
+    opacity: 0;
+  }
+  30% {
+    opacity: 0.75;
+  }
+  70% {
+    opacity: 0.75;
+  }
+  100% {
+    transform: translateX(100%) skewX(-20deg);
+    opacity: 0;
+  }
+}
+
+/* 1. BETTING PHASE: Warmer Amber / Golden Hearth Glow */
+.table-state-overlay-betting {
+  background: radial-gradient(ellipse at 50% 38%, rgba(245, 158, 11, 0.32) 0%, rgba(217, 119, 6, 0.20) 45%, rgba(180, 83, 9, 0.08) 75%, transparent 100%);
+  box-shadow: inset 0 0 85px rgba(245, 158, 11, 0.38), 0 0 55px rgba(251, 191, 36, 0.22);
+  mix-blend-mode: screen;
+  animation: state-tint-pulse-amber 3.0s ease-in-out infinite;
+  transform: translateZ(0);
+  will-change: opacity;
+}
+
+/* Urgent Last 5s Countdown: Intensified Golden-Amber Glow */
+.table-state-overlay-betting-urgent {
+  background: radial-gradient(ellipse at 50% 38%, rgba(245, 158, 11, 0.48) 0%, rgba(234, 88, 12, 0.32) 48%, rgba(220, 38, 38, 0.15) 78%, transparent 100%);
+  box-shadow: inset 0 0 100px rgba(245, 158, 11, 0.6), 0 0 70px rgba(239, 68, 68, 0.4);
+  mix-blend-mode: screen;
+  animation: state-tint-pulse-amber-urgent 1.2s ease-in-out infinite;
+  transform: translateZ(0);
+  will-change: opacity;
+}
+
+/* 2. DEALING PHASE: Cooler Blue / Ice Cyan / Electric Sapphire */
+.table-state-overlay-dealing {
+  background: radial-gradient(ellipse at 50% 40%, rgba(6, 182, 212, 0.36) 0%, rgba(2, 132, 199, 0.25) 42%, rgba(3, 105, 161, 0.09) 75%, transparent 100%);
+  box-shadow: inset 0 0 90px rgba(6, 182, 212, 0.45), 0 0 65px rgba(56, 189, 248, 0.28);
+  mix-blend-mode: screen;
+  animation: state-tint-pulse-blue 2.2s ease-in-out infinite;
+  transform: translateZ(0);
+  will-change: opacity;
+}
+
+/* 3. PAYOUT SETTLEMENT PHASE: Deep Royal Red / Ruby Crimson */
+.table-state-overlay-settling {
+  background: radial-gradient(ellipse at 50% 38%, rgba(239, 68, 68, 0.46) 0%, rgba(185, 28, 28, 0.32) 48%, rgba(127, 29, 29, 0.14) 80%, transparent 100%);
+  box-shadow: inset 0 0 110px rgba(239, 68, 68, 0.65), 0 0 80px rgba(239, 68, 68, 0.42);
+  mix-blend-mode: screen;
+  animation: state-tint-pulse-red 1.8s ease-in-out infinite;
+  transform: translateZ(0);
+  will-change: opacity;
+}
+
+/* ========================================================================== */
+/* BET BUTTON TOUCH ENHANCEMENTS (ACCESSIBLE & MOBILE RESPONSIVE) */
+/* ========================================================================== */
+
+.bet-buttons-container {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: stretch;
+  gap: 0.25rem;
+  width: 100%;
+}
+
+.bet-button {
+  touch-action: manipulation;
+  -webkit-tap-highlight-color: transparent;
+  user-select: none;
+  position: relative;
+  box-sizing: border-box;
+  flex-shrink: 0;
+  flex: 1 1 calc(20% - 8px);
+  min-width: 0;
+  transition: transform 0.15s cubic-bezier(0.16, 1, 0.3, 1), background-color 0.2s ease, border-color 0.2s ease, box-shadow 0.2s ease;
+}
+
+.bet-button:focus-visible {
+  outline: 2px solid #f59e0b;
+  outline-offset: 2px;
+}
+
+/* Ensure mobile minimum touch area is accessible without overlapping */
+@media (max-width: 640px) {
+  .bet-button {
+    min-height: 38px;
+    padding-left: 0.25rem;
+    padding-right: 0.25rem;
+    flex: 1 1 calc(20% - 8px);
+  }
+}
+
+@media (min-width: 641px) {
+  .bet-button {
+    min-height: 44px;
+    transition: transform 0.2s cubic-bezier(0.16, 1, 0.3, 1), background-color 0.2s ease, border-color 0.2s ease, box-shadow 0.2s ease;
+  }
+
+  .bet-button:hover:not(:disabled) {
+    transform: scale(1.05);
+    background-color: #262626; /* neutral-800 */
+    cursor: pointer;
+  }
+}
+
+/* GPU Hardware Acceleration & Low-Bandwidth Optimizations */
+.gpu-accelerated {
+  transform: translateZ(0);
+  backface-visibility: hidden;
+  perspective: 1000px;
+  will-change: transform;
+}
+
+.content-optimize {
+  content-visibility: auto;
+  contain-intrinsic-size: 1px 500px;
+}
+
+/* Luxury Skeleton Shimmer Loading Effect */
+@keyframes skeleton-shimmer {
+  0% {
+    transform: translateX(-100%);
+  }
+  100% {
+    transform: translateX(100%);
+  }
+}
+
+.skeleton-shimmer {
+  position: relative;
+  overflow: hidden;
+  background-color: rgba(255, 255, 255, 0.04);
+}
+
+.skeleton-shimmer::after {
+  position: absolute;
+  inset: 0;
+  transform: translateX(-100%);
+  background-image: linear-gradient(
+    90deg,
+    rgba(255, 255, 255, 0) 0,
+    rgba(245, 158, 11, 0.06) 20%,
+    rgba(255, 255, 255, 0.12) 50%,
+    rgba(255, 255, 255, 0) 100%
+  );
+  animation: skeleton-shimmer 1.6s infinite ease-in-out;
+  content: '';
+}
+
+/* ============================================================================
+   ADVANCED GPU-ACCELERATED ANIMATIONS (60FPS FOR LOW-END & MOBILE)
+   ============================================================================ */
+
+/* 1. 3D Card Dealing Slide & Flip */
+@keyframes card-deal-shoe-dragon {
+  0% {
+    transform: translate3d(50px, -80px, 0) scale(0.4) rotate(-25deg);
+    opacity: 0;
+  }
+  60% {
+    transform: translate3d(0, 10px, 0) scale(1.08) rotate(3deg);
+    opacity: 1;
+  }
+  100% {
+    transform: translate3d(0, 0, 0) scale(1) rotate(0deg);
+    opacity: 1;
+  }
+}
+
+@keyframes card-deal-shoe-tiger {
+  0% {
+    transform: translate3d(-50px, -80px, 0) scale(0.4) rotate(25deg);
+    opacity: 0;
+  }
+  60% {
+    transform: translate3d(0, 10px, 0) scale(1.08) rotate(-3deg);
+    opacity: 1;
+  }
+  100% {
+    transform: translate3d(0, 0, 0) scale(1) rotate(0deg);
+    opacity: 1;
+  }
+}
+
+.animate-deal-dragon {
+  animation: card-deal-shoe-dragon 0.45s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+  will-change: transform, opacity;
+}
+
+.animate-deal-tiger {
+  animation: card-deal-shoe-tiger 0.45s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+  will-change: transform, opacity;
+}
+
+/* 2. Parabolic Flying Chip & Impact Shockwave */
+@keyframes chip-fly-to-slot {
+  0% {
+    transform: translate3d(0, 40px, 0) scale(0.7) rotate(0deg);
+    opacity: 0.6;
+  }
+  50% {
+    transform: translate3d(0, -15px, 0) scale(1.2) rotate(180deg);
+    opacity: 1;
+  }
+  100% {
+    transform: translate3d(0, 0, 0) scale(1) rotate(360deg);
+    opacity: 1;
+  }
+}
+
+@keyframes chip-impact-ripple {
+  0% {
+    transform: scale(0.8);
+    opacity: 0.9;
+  }
+  100% {
+    transform: scale(2.2);
+    opacity: 0;
+  }
+}
+
+.animate-chip-fly {
+  animation: chip-fly-to-slot 0.35s cubic-bezier(0.2, 0.8, 0.2, 1) forwards;
+  will-change: transform, opacity;
+}
+
+.animate-impact-ripple {
+  animation: chip-impact-ripple 0.6s cubic-bezier(0, 0, 0.2, 1) forwards;
+}
+
+/* 3. Victory Sunburst & Halo */
+@keyframes victory-sunburst-spin {
+  0% {
+    transform: rotate(0deg) scale(1);
+    opacity: 0.6;
+  }
+  50% {
+    transform: rotate(180deg) scale(1.15);
+    opacity: 0.9;
+  }
+  100% {
+    transform: rotate(360deg) scale(1);
+    opacity: 0.6;
+  }
+}
+
+.animate-sunburst-spin {
+  animation: victory-sunburst-spin 12s linear infinite;
+  will-change: transform;
+}
+
+/* 4. Dragon Fire & Tiger Electric Auras */
+@keyframes dragon-aura-pulse {
+  0%, 100% {
+    box-shadow: 0 0 15px rgba(239, 68, 68, 0.35), inset 0 0 15px rgba(239, 68, 68, 0.2);
+    border-color: rgba(239, 68, 68, 0.7);
+  }
+  50% {
+    box-shadow: 0 0 35px rgba(239, 68, 68, 0.7), inset 0 0 25px rgba(239, 68, 68, 0.4);
+    border-color: rgba(252, 165, 165, 1);
+  }
+}
+
+@keyframes tiger-aura-pulse {
+  0%, 100% {
+    box-shadow: 0 0 15px rgba(245, 158, 11, 0.35), inset 0 0 15px rgba(245, 158, 11, 0.2);
+    border-color: rgba(245, 158, 11, 0.7);
+  }
+  50% {
+    box-shadow: 0 0 35px rgba(245, 158, 11, 0.7), inset 0 0 25px rgba(245, 158, 11, 0.4);
+    border-color: rgba(254, 240, 138, 1);
+  }
+}
+
+.animate-dragon-aura {
+  animation: dragon-aura-pulse 1.8s ease-in-out infinite;
+}
+
+.animate-tiger-aura {
+  animation: tiger-aura-pulse 1.8s ease-in-out infinite;
+}
+
+/* 5. 3D Card Sheen Shimmer */
+@keyframes card-sheen {
+  0% {
+    transform: translateX(-150%) rotate(25deg);
+  }
+  100% {
+    transform: translateX(250%) rotate(25deg);
+  }
+}
+
+.card-sheen-effect {
+  position: relative;
+  overflow: hidden;
+}
+
+.card-sheen-effect::after {
+  content: '';
+  position: absolute;
+  top: -50%;
+  left: -50%;
+  width: 200%;
+  height: 200%;
+  background: linear-gradient(
+    60deg,
+    transparent 40%,
+    rgba(255, 255, 255, 0.25) 50%,
+    transparent 60%
+  );
+  transform: translateX(-150%) rotate(25deg);
+  animation: card-sheen 3s infinite cubic-bezier(0.4, 0, 0.2, 1);
+  pointer-events: none;
+}
+
+/* 6. Lightweight Fallbacks for Low-End Mobile & Slow Internet */
+@media (max-width: 640px), (prefers-reduced-motion: reduce) {
+  * {
+    /* Prefer hardware layer for transforms */
+    -webkit-tap-highlight-color: transparent;
+  }
+  
+  .smart-glass {
+    backdrop-filter: none !important;
+    background-color: rgba(14, 18, 28, 0.95) !important;
+  }
+}
+
+
+
+
+

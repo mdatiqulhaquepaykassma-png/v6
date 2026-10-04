@@ -1,0 +1,18 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 768" width="512" height="768">
+  <defs>
+    <linearGradient id="goldGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#ffe066"/>
+      <stop offset="50%" stop-color="#d4af37"/>
+      <stop offset="100%" stop-color="#997300"/>
+    </linearGradient>
+    <pattern id="diamondNet" width="16" height="16" patternUnits="userSpaceOnUse">
+      <path d="M0,8 L8,0 L16,8 L8,16 Z" fill="none" stroke="url(#goldGrad)" stroke-width="1" opacity="0.75"/>
+      <circle cx="8" cy="8" r="1.5" fill="url(#goldGrad)"/>
+    </pattern>
+  </defs>
+  <rect width="512" height="768" rx="32" fill="#05080f" stroke="url(#goldGrad)" stroke-width="6"/>
+  <rect x="18" y="18" width="476" height="732" rx="22" fill="url(#diamondNet)"/>
+  <rect x="26" y="26" width="460" height="716" rx="16" fill="none" stroke="url(#goldGrad)" stroke-width="2" stroke-opacity="0.6"/>
+  <circle cx="256" cy="384" r="120" fill="#05080f" stroke="url(#goldGrad)" stroke-width="4"/>
+  <path d="M256,290 L280,350 L345,350 L292,390 L312,450 L256,415 L200,450 L220,390 L167,350 L232,350 Z" fill="url(#goldGrad)"/>
+</svg>

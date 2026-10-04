@@ -1,0 +1,713 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// ============================================================================
+// ENUMS
+// ============================================================================
+
+enum UserRole {
+  PLAYER
+  MERCHANT
+  ADMIN
+  SUPER_ADMIN
+}
+
+enum UserStatus {
+  ACTIVE
+  INACTIVE
+  BANNED
+  SUSPENDED
+}
+
+enum KYCStatus {
+  NONE
+  PENDING
+  VERIFIED
+  REJECTED
+}
+
+enum BalanceType {
+  REAL
+  DEMO
+}
+
+enum BetSide {
+  DRAGON
+  TIGER
+}
+
+enum BetStatus {
+  PENDING
+  MATCHED
+  PARTIALLY_MATCHED
+  WON
+  LOST
+  REFUNDED
+  TIE_LOSS
+  CANCELLED
+}
+
+enum RoundStatus {
+  WAITING
+  BETTING
+  MATCHING
+  DEALING
+  SETTLING
+  COMPLETED
+  CANCELLED
+}
+
+enum RoundResult {
+  DRAGON
+  TIGER
+  TIE
+}
+
+enum TransactionType {
+  DEPOSIT
+  WITHDRAWAL
+  BET_PLACED
+  BET_WIN
+  BET_LOSS
+  BET_REFUND
+  BET_TIE_LOSS
+  COMMISSION
+  ADJUSTMENT
+  REFERRAL_BONUS
+  MERCHANT_SETTLEMENT
+  MERCHANT_DEPOSIT
+  MERCHANT_WITHDRAWAL
+}
+
+enum TransactionStatus {
+  PENDING
+  COMPLETED
+  FAILED
+  CANCELLED
+  REVERSED
+}
+
+enum PaymentMethod {
+  UPI
+  BANK_TRANSFER
+  USDT
+  MANUAL
+}
+
+enum DepositStatus {
+  PENDING
+  APPROVED
+  REJECTED
+  EXPIRED
+}
+
+enum WithdrawalStatus {
+  PENDING
+  APPROVED
+  REJECTED
+  PROCESSING
+  COMPLETED
+  FAILED
+}
+
+enum MerchantStatus {
+  ACTIVE
+  INACTIVE
+  SUSPENDED
+}
+
+enum WebhookStatus {
+  PENDING
+  SENT
+  FAILED
+  RETRYING
+}
+
+enum CardSuit {
+  HEARTS
+  DIAMONDS
+  CLUBS
+  SPADES
+}
+
+enum TableType {
+  EXPRESS
+  CLASSIC
+  VIP
+}
+
+// ============================================================================
+// MODELS (22 TOTAL)
+// ============================================================================
+
+// 1. User
+model User {
+  id                  Int                 @id @default(autoincrement())
+  uuid                String              @unique @default(uuid())
+  username            String              @unique
+  email               String?             @unique
+  phone               String?             @unique
+  passwordHash        String
+  role                UserRole            @default(PLAYER)
+  status              UserStatus          @default(ACTIVE)
+  kycStatus           KYCStatus           @default(NONE)
+  realBalance         Decimal             @default(0.00) @db.Decimal(18, 2)
+  demoBalance         Decimal             @default(10000.00) @db.Decimal(18, 2)
+  referralCode        String              @unique
+  referredById        Int?
+  twoFactorEnabled    Boolean             @default(false)
+  twoFactorSecret     String?
+  avatarUrl           String?
+  preferredTableId    Int?
+  soundEnabled        Boolean             @default(true)
+  lastBetAmount       Decimal?            @db.Decimal(18, 2)
+  autoBetEnabled      Boolean             @default(false)
+  dailyDepositLimit   Decimal?            @db.Decimal(18, 2)
+  dailyLossLimit      Decimal?            @db.Decimal(18, 2)
+  sessionTimeLimit    Int?                // In minutes
+  selfExcludedUntil   DateTime?
+  lastLoginAt         DateTime?
+  lastLoginIp         String?
+  loginAttempts       Int                 @default(0)
+  lockedUntil         DateTime?
+  metadata            Json                @default("{}")
+  createdAt           DateTime            @default(now())
+  updatedAt           DateTime            @updatedAt
+
+  referrer            User?               @relation("UserReferrals", fields: [referredById], references: [id], onDelete: SetNull)
+  referrals           User[]              @relation("UserReferrals")
+  bets                Bet[]
+  transactions        Transaction[]
+  sessions            Session[]
+  kycDocuments        KYCDocument[]       @relation("UserKYC")
+  verifiedKYCs        KYCDocument[]       @relation("AdminKYCVerifier")
+  deposits            DepositRequest[]    @relation("UserDeposits")
+  processedDeposits   DepositRequest[]    @relation("AdminDepositProcessor")
+  withdrawals         WithdrawalRequest[] @relation("UserWithdrawals")
+  processedWithdrawals WithdrawalRequest[] @relation("AdminWithdrawalProcessor")
+  merchant            Merchant?
+  merchantPlayers     MerchantPlayer[]
+  referralEarnings    ReferralEarning[]   @relation("ReferrerEarnings")
+  referredEarnings    ReferralEarning[]   @relation("ReferredPlayerEarnings")
+  systemSettings      SystemSetting[]     @relation("AdminSettingUpdater")
+  announcements       Announcement[]      @relation("AdminAnnouncementCreator")
+  notesReceived       AdminNote[]         @relation("UserNotes")
+  notesAuthored       AdminNote[]         @relation("AdminNotesAuthored")
+  aggregatorSessions  AggregatorSession[]
+
+  @@index([email])
+  @@index([phone])
+  @@index([referralCode])
+  @@index([role, status])
+  @@index([referredById])
+  @@index([username])
+  @@index([createdAt])
+}
+
+// 2. Merchant
+model Merchant {
+  id                  Int                 @id @default(autoincrement())
+  uuid                String              @unique @default(uuid())
+  userId              Int                 @unique
+  companyName         String
+  apiKey              String              @unique
+  apiSecret           String
+  webhookUrl          String?
+  callbackUrl         String?
+  commissionRate      Decimal             @default(0.0500) @db.Decimal(5, 4)
+  status              MerchantStatus      @default(ACTIVE)
+  ipWhitelist         Json                @default("[]")
+  monthlyVolumeLimit  Decimal?            @db.Decimal(18, 2)
+  currentMonthVolume  Decimal             @default(0.00) @db.Decimal(18, 2)
+  walletBalance       Decimal             @default(0.00) @db.Decimal(18, 2)
+  settledAmount       Decimal             @default(0.00) @db.Decimal(18, 2)
+  pendingSettlement   Decimal             @default(0.00) @db.Decimal(18, 2)
+  createdAt           DateTime            @default(now())
+  updatedAt           DateTime            @updatedAt
+
+  user                User                @relation(fields: [userId], references: [id], onDelete: Cascade)
+  merchantPlayers     MerchantPlayer[]
+  apiLogs             MerchantAPILog[]
+  webhookDeliveries   WebhookDelivery[]
+  bets                Bet[]
+  companyLedger       CompanyLedger[]
+
+  @@index([apiKey])
+  @@index([userId])
+  @@index([status])
+}
+
+// 3. GameTable
+model GameTable {
+  id                  Int                 @id @default(autoincrement())
+  uuid                String              @unique @default(uuid())
+  name                String
+  slug                String              @unique
+  tableType           TableType           @default(CLASSIC)
+  minBet              Decimal             @db.Decimal(18, 2)
+  maxBet              Decimal             @db.Decimal(18, 2)
+  bettingDuration     Int                 @default(30) // seconds
+  dealingDuration     Int                 @default(3)  // seconds
+  nextRoundDelay      Int                 @default(3)  // seconds
+  commissionRate      Decimal             @default(0.0500) @db.Decimal(5, 4)
+  isActive            Boolean             @default(true)
+  sortOrder           Int                 @default(0)
+  currentRoundId      Int?                @unique
+  playersOnline       Int                 @default(0)
+  totalRoundsPlayed   BigInt              @default(0)
+  createdAt           DateTime            @default(now())
+  updatedAt           DateTime            @updatedAt
+
+  rounds              GameRound[]         @relation("TableRounds")
+  currentRound        GameRound?          @relation("CurrentTableRound", fields: [currentRoundId], references: [id], onDelete: SetNull)
+  bets                Bet[]
+  aggregatorSessions  AggregatorSession[]
+
+  @@index([slug])
+  @@index([isActive])
+  @@index([tableType])
+}
+
+// 4. GameRound
+model GameRound {
+  id                  Int                 @id @default(autoincrement())
+  uuid                String              @unique @default(uuid())
+  roundNumber         BigInt
+  tableId             Int
+  status              RoundStatus         @default(WAITING)
+  dragonCardValue     Int?                // 1-13
+  dragonCardSuit      CardSuit?
+  tigerCardValue      Int?                // 1-13
+  tigerCardSuit       CardSuit?
+  result              RoundResult?
+  serverSeed          String?             // Revealed ONLY after settlement
+  serverSeedHash      String
+  clientSeed          String
+  nonce               Int
+  totalDragonBets     Decimal             @default(0.00) @db.Decimal(18, 2)
+  totalTigerBets      Decimal             @default(0.00) @db.Decimal(18, 2)
+  totalMatchedAmount  Decimal             @default(0.00) @db.Decimal(18, 2)
+  totalRefundedAmount Decimal             @default(0.00) @db.Decimal(18, 2)
+  companyCommission   Decimal             @default(0.00) @db.Decimal(18, 2)
+  tieRevenue          Decimal             @default(0.00) @db.Decimal(18, 2)
+  totalPayout         Decimal             @default(0.00) @db.Decimal(18, 2)
+  playerCount         Int                 @default(0)
+  bettingStartAt      DateTime?
+  bettingEndAt        DateTime?
+  dealtAt             DateTime?
+  settledAt           DateTime?
+  completedAt         DateTime?
+  createdAt           DateTime            @default(now())
+
+  table               GameTable           @relation("TableRounds", fields: [tableId], references: [id], onDelete: Cascade)
+  tableAsCurrent      GameTable?          @relation("CurrentTableRound")
+  bets                Bet[]
+  betMatches          BetMatch[]
+  companyLedger       CompanyLedger[]
+  referralEarnings    ReferralEarning[]
+
+  @@unique([tableId, roundNumber])
+  @@index([tableId, status])
+  @@index([roundNumber])
+  @@index([createdAt])
+  @@index([result])
+}
+
+// 5. Bet
+model Bet {
+  id                  Int                 @id @default(autoincrement())
+  uuid                String              @unique @default(uuid())
+  userId              Int
+  roundId             Int
+  merchantId          Int?
+  tableId             Int
+  side                BetSide
+  amount              Decimal             @db.Decimal(18, 2)
+  matchedAmount       Decimal             @default(0.00) @db.Decimal(18, 2)
+  unmatchedAmount     Decimal             @default(0.00) @db.Decimal(18, 2)
+  payout              Decimal             @default(0.00) @db.Decimal(18, 2)
+  profitLoss          Decimal             @default(0.00) @db.Decimal(18, 2)
+  commission          Decimal             @default(0.00) @db.Decimal(18, 2)
+  status              BetStatus           @default(PENDING)
+  balanceType         BalanceType         @default(REAL)
+  idempotencyKey      String?             @unique
+  settledAt           DateTime?
+  createdAt           DateTime            @default(now())
+
+  user                User                @relation(fields: [userId], references: [id], onDelete: Cascade)
+  round               GameRound           @relation(fields: [roundId], references: [id], onDelete: Cascade)
+  merchant            Merchant?           @relation(fields: [merchantId], references: [id], onDelete: SetNull)
+  table               GameTable           @relation(fields: [tableId], references: [id], onDelete: Cascade)
+  dragonMatches       BetMatch[]          @relation("DragonBetMatches")
+  tigerMatches        BetMatch[]          @relation("TigerBetMatches")
+  referralEarnings    ReferralEarning[]
+
+  @@unique([userId, roundId, side, balanceType])
+  @@index([userId, roundId])
+  @@index([roundId, side])
+  @@index([status])
+  @@index([userId, createdAt])
+  @@index([tableId, roundId])
+  @@index([idempotencyKey])
+}
+
+// 6. BetMatch
+model BetMatch {
+  id                  Int                 @id @default(autoincrement())
+  roundId             Int
+  dragonBetId         Int
+  tigerBetId          Int
+  amount              Decimal             @db.Decimal(18, 2)
+  createdAt           DateTime            @default(now())
+
+  round               GameRound           @relation(fields: [roundId], references: [id], onDelete: Cascade)
+  dragonBet           Bet                 @relation("DragonBetMatches", fields: [dragonBetId], references: [id], onDelete: Cascade)
+  tigerBet            Bet                 @relation("TigerBetMatches", fields: [tigerBetId], references: [id], onDelete: Cascade)
+
+  @@index([roundId])
+  @@index([dragonBetId])
+  @@index([tigerBetId])
+}
+
+// 7. Transaction
+model Transaction {
+  id                  Int                 @id @default(autoincrement())
+  uuid                String              @unique @default(uuid())
+  userId              Int
+  type                TransactionType
+  amount              Decimal             @db.Decimal(18, 2)
+  balanceBefore       Decimal             @db.Decimal(18, 2)
+  balanceAfter        Decimal             @db.Decimal(18, 2)
+  balanceType         BalanceType         @default(REAL)
+  status              TransactionStatus   @default(COMPLETED)
+  referenceId         String?
+  referenceType       String?
+  description         String
+  metadata            Json                @default("{}")
+  idempotencyKey      String?             @unique
+  createdAt           DateTime            @default(now())
+  processedAt         DateTime?
+
+  user                User                @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, createdAt])
+  @@index([type])
+  @@index([referenceId])
+  @@index([idempotencyKey])
+  @@index([userId, type, createdAt])
+  @@index([createdAt])
+}
+
+// 8. DepositRequest
+model DepositRequest {
+  id                  Int                 @id @default(autoincrement())
+  uuid                String              @unique @default(uuid())
+  userId              Int
+  amount              Decimal             @db.Decimal(18, 2)
+  paymentMethod       PaymentMethod
+  paymentReference    String?
+  utrNumber           String?
+  proofImageUrl       String?
+  status              DepositStatus       @default(PENDING)
+  processedById       Int?
+  adminNote           String?
+  expiresAt           DateTime
+  createdAt           DateTime            @default(now())
+  processedAt         DateTime?
+
+  user                User                @relation("UserDeposits", fields: [userId], references: [id], onDelete: Cascade)
+  processor           User?               @relation("AdminDepositProcessor", fields: [processedById], references: [id], onDelete: SetNull)
+
+  @@index([userId])
+  @@index([status])
+  @@index([createdAt])
+  @@index([status, createdAt])
+}
+
+// 9. WithdrawalRequest
+model WithdrawalRequest {
+  id                  Int                 @id @default(autoincrement())
+  uuid                String              @unique @default(uuid())
+  userId              Int
+  amount              Decimal             @db.Decimal(18, 2)
+  paymentMethod       PaymentMethod
+  accountDetails      Json                // Encrypted JSON
+  status              WithdrawalStatus    @default(PENDING)
+  processedById       Int?
+  adminNote           String?
+  transactionHash     String?
+  createdAt           DateTime            @default(now())
+  processedAt         DateTime?
+  completedAt         DateTime?
+
+  user                User                @relation("UserWithdrawals", fields: [userId], references: [id], onDelete: Cascade)
+  processor           User?               @relation("AdminWithdrawalProcessor", fields: [processedById], references: [id], onDelete: SetNull)
+
+  @@index([userId])
+  @@index([status])
+  @@index([createdAt])
+  @@index([status, createdAt])
+}
+
+// 10. KYCDocument
+model KYCDocument {
+  id                  Int                 @id @default(autoincrement())
+  userId              Int
+  documentType        String
+  documentNumber      String              // Application-level encrypted
+  frontImageUrl       String
+  backImageUrl        String?
+  selfieUrl           String?
+  status              KYCStatus           @default(PENDING)
+  verifiedById        Int?
+  rejectionReason     String?
+  createdAt           DateTime            @default(now())
+  verifiedAt          DateTime?
+
+  user                User                @relation("UserKYC", fields: [userId], references: [id], onDelete: Cascade)
+  verifier            User?               @relation("AdminKYCVerifier", fields: [verifiedById], references: [id], onDelete: SetNull)
+
+  @@index([userId])
+  @@index([status])
+}
+
+// 11. AuditLog
+model AuditLog {
+  id                  BigInt              @id @default(autoincrement())
+  userId              Int?
+  action              String
+  entityType          String
+  entityId            String
+  oldValues           Json?
+  newValues           Json?
+  ipAddress           String?
+  userAgent           String?
+  createdAt           DateTime            @default(now())
+
+  @@index([userId])
+  @@index([action])
+  @@index([entityType, entityId])
+  @@index([createdAt])
+  @@index([userId, createdAt])
+}
+
+// 12. Session
+model Session {
+  id                  Int                 @id @default(autoincrement())
+  userId              Int
+  refreshTokenHash    String              @unique
+  ipAddress           String?
+  userAgent           String?
+  deviceInfo          Json?
+  isActive            Boolean             @default(true)
+  createdAt           DateTime            @default(now())
+  expiresAt           DateTime
+  lastActivityAt      DateTime            @default(now())
+
+  user                User                @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([refreshTokenHash])
+  @@index([isActive, expiresAt])
+}
+
+// 13. MerchantPlayer
+model MerchantPlayer {
+  id                  Int                 @id @default(autoincrement())
+  merchantId          Int
+  userId              Int
+  externalPlayerId    String
+  createdAt           DateTime            @default(now())
+
+  merchant            Merchant            @relation(fields: [merchantId], references: [id], onDelete: Cascade)
+  user                User                @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([merchantId, externalPlayerId])
+  @@index([userId])
+  @@index([merchantId])
+}
+
+// 14. MerchantAPILog
+model MerchantAPILog {
+  id                  BigInt              @id @default(autoincrement())
+  merchantId          Int
+  endpoint            String
+  method              String
+  requestHeaders      Json?
+  requestBody         Json?
+  responseStatus      Int
+  responseBody        Json?
+  ipAddress           String?
+  processingTimeMs    Int
+  createdAt           DateTime            @default(now())
+
+  merchant            Merchant            @relation(fields: [merchantId], references: [id], onDelete: Cascade)
+
+  @@index([merchantId, createdAt])
+  @@index([endpoint, createdAt])
+}
+
+// 15. WebhookDelivery
+model WebhookDelivery {
+  id                  Int                 @id @default(autoincrement())
+  merchantId          Int
+  event               String
+  payload             Json
+  url                 String
+  status              WebhookStatus       @default(PENDING)
+  attempts            Int                 @default(0)
+  maxAttempts         Int                 @default(3)
+  lastAttemptAt       DateTime?
+  responseStatus      Int?
+  responseBody        String?
+  nextRetryAt         DateTime?
+  error               String?
+  createdAt           DateTime            @default(now())
+
+  merchant            Merchant            @relation(fields: [merchantId], references: [id], onDelete: Cascade)
+
+  @@index([merchantId])
+  @@index([status, nextRetryAt])
+  @@index([event, createdAt])
+}
+
+// 16. ReferralEarning
+model ReferralEarning {
+  id                  Int                 @id @default(autoincrement())
+  userId              Int                 // Referrer
+  referredUserId      Int                 // Referred player
+  roundId             Int?
+  betId               Int?
+  commissionAmount    Decimal             @db.Decimal(18, 2)
+  createdAt           DateTime            @default(now())
+
+  user                User                @relation("ReferrerEarnings", fields: [userId], references: [id], onDelete: Cascade)
+  referredUser        User                @relation("ReferredPlayerEarnings", fields: [referredUserId], references: [id], onDelete: Cascade)
+  round               GameRound?          @relation(fields: [roundId], references: [id], onDelete: SetNull)
+  bet                 Bet?                @relation(fields: [betId], references: [id], onDelete: SetNull)
+
+  @@index([userId, createdAt])
+  @@index([referredUserId])
+}
+
+// 17. SystemSetting
+model SystemSetting {
+  id                  Int                 @id @default(autoincrement())
+  key                 String              @unique
+  value               Json
+  description         String?
+  category            String              @default("general")
+  updatedById         Int?
+  createdAt           DateTime            @default(now())
+  updatedAt           DateTime            @updatedAt
+
+  updater             User?               @relation("AdminSettingUpdater", fields: [updatedById], references: [id], onDelete: SetNull)
+
+  @@index([key])
+  @@index([category])
+}
+
+// 18. CompanyLedger
+model CompanyLedger {
+  id                  Int                 @id @default(autoincrement())
+  type                String              // COMMISSION, TIE_REVENUE, ADJUSTMENT, SETTLEMENT
+  amount              Decimal             @db.Decimal(18, 2)
+  balanceBefore       Decimal             @db.Decimal(18, 2)
+  balanceAfter        Decimal             @db.Decimal(18, 2)
+  roundId             Int?
+  merchantId          Int?
+  description         String
+  metadata            Json                @default("{}")
+  createdAt           DateTime            @default(now())
+
+  round               GameRound?          @relation(fields: [roundId], references: [id], onDelete: SetNull)
+  merchant            Merchant?           @relation(fields: [merchantId], references: [id], onDelete: SetNull)
+
+  @@index([type, createdAt])
+  @@index([roundId])
+  @@index([createdAt])
+}
+
+// 19. Announcement
+model Announcement {
+  id                  Int                 @id @default(autoincrement())
+  title               String
+  content             String
+  type                String              // INFO, WARNING, MAINTENANCE, PROMOTION
+  isActive            Boolean             @default(true)
+  priority            Int                 @default(0)
+  startsAt            DateTime            @default(now())
+  endsAt              DateTime?
+  createdById         Int
+  createdAt           DateTime            @default(now())
+  updatedAt           DateTime            @updatedAt
+
+  creator             User                @relation("AdminAnnouncementCreator", fields: [createdById], references: [id], onDelete: Cascade)
+
+  @@index([isActive, startsAt])
+  @@index([type])
+}
+
+// 20. AdminNote
+model AdminNote {
+  id                  Int                 @id @default(autoincrement())
+  userId              Int                 // Note regarding this user
+  authorId            Int                 // Admin who wrote note
+  content             String
+  createdAt           DateTime            @default(now())
+
+  user                User                @relation("UserNotes", fields: [userId], references: [id], onDelete: Cascade)
+  author              User                @relation("AdminNotesAuthored", fields: [authorId], references: [id], onDelete: Cascade)
+
+  @@index([userId, createdAt])
+}
+
+// 21. AggregatorOperator
+model AggregatorOperator {
+  id                  Int                 @id @default(autoincrement())
+  operatorId          String              @unique
+  name                String
+  apiBaseUrl          String
+  apiKey              String
+  apiSecret           String
+  signatureMethod     String              @default("HMAC-SHA256")
+  ipWhitelist         Json                @default("[]")
+  walletMode          String              @default("SEAMLESS") // SEAMLESS or TRANSFER
+  currency            String              @default("INR")
+  isActive            Boolean             @default(true)
+  createdAt           DateTime            @default(now())
+  updatedAt           DateTime            @updatedAt
+
+  sessions            AggregatorSession[]
+
+  @@index([operatorId])
+  @@index([isActive])
+}
+
+// 22. AggregatorSession
+model AggregatorSession {
+  id                  Int                 @id @default(autoincrement())
+  operatorId          Int
+  externalPlayerId    String
+  internalUserId      Int?
+  sessionToken        String              @unique
+  gameTableId         Int?
+  isActive            Boolean             @default(true)
+  createdAt           DateTime            @default(now())
+  expiresAt           DateTime
+  lastActivityAt      DateTime            @default(now())
+
+  operator            AggregatorOperator  @relation(fields: [operatorId], references: [id], onDelete: Cascade)
+  user                User?               @relation(fields: [internalUserId], references: [id], onDelete: SetNull)
+  table               GameTable?          @relation(fields: [gameTableId], references: [id], onDelete: SetNull)
+
+  @@index([sessionToken])
+  @@index([operatorId, externalPlayerId])
+  @@index([isActive])
+}
