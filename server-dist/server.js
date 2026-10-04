@@ -156,7 +156,21 @@ function kickSession(sessionId, reason) {
   });
 }
 app.set("trust proxy", 1);
-app.use(express.json());
+app.use(express.json({ limit: "10mb" }));
+app.use(express.urlencoded({ extended: true, limit: "10mb" }));
+app.use((req, res, next) => {
+  if (!req.url.includes("/assets/") && !req.url.includes(".svg")) {
+    console.log(`[REQ] ${req.method} ${req.url} - ${(/* @__PURE__ */ new Date()).toISOString()}`);
+  }
+  const start = Date.now();
+  res.on("finish", () => {
+    const duration = Date.now() - start;
+    if (duration > 1500) {
+      console.warn(`[SLOW-REQ] ${req.method} ${req.url} took ${duration}ms`);
+    }
+  });
+  next();
+});
 app.get("/api/health", (_req, res) => {
   const mem = process.memoryUsage();
   res.status(200).json({
@@ -180,7 +194,7 @@ app.get("/api/time", (_req, res) => {
 });
 app.get("/api/version", (_req, res) => {
   res.status(200).json({
-    version: process.env.RENDER_GIT_COMMIT || process.env.COMMIT_REF || "v3.0.0-BUILD-2026.10.04.100",
+    version: process.env.RENDER_GIT_COMMIT || process.env.COMMIT_REF || "v3.1.0-DEPLOY-SYNC-2026.10.04.101",
     timestamp: Date.now()
   });
 });
@@ -3968,11 +3982,10 @@ app.post("/api/ai-dealer", async (req, res) => {
         commentary: `Cards shuffled on the ${safeSlug.toUpperCase()} arena. Fortune favors the daring. Last win went to ${safeWinner}!`
       });
     }
-    const response = await ai.models.generateContent({
-      model: "gemini-2.5-flash",
-      contents: `You are an elite, charismatic Asian casino dealer for Dragon Tiger P2P. Provide one punchy, exciting casino sentence for players placing bets. Last round winner: ${safeWinner}. Keep it high energy.`
-    });
-    res.json({ commentary: response.text });
+    const response = await ai.getGenerativeModel({
+      model: "gemini-1.5-flash"
+    }).generateContent(`You are an elite, charismatic Asian casino dealer for Dragon Tiger P2P. Provide one punchy, exciting casino sentence for players placing bets. Last round winner: ${safeWinner}. Keep it high energy.`);
+    res.json({ commentary: response.response.text() });
   } catch {
     res.json({
       commentary: "Cards are in play! Will the Dragon roar or will the Tiger strike? Place your bets!"
@@ -3990,10 +4003,11 @@ app.use((err, req, res, next) => {
   next(err);
 });
 async function startServer() {
-  const env = process.env.NODE_ENV || "development";
-  console.log(`[BOOT] Environment: ${env}`);
+  const hasDist = fs.existsSync(path.join(process.cwd(), "dist"));
+  const env = process.env.NODE_ENV || (hasDist ? "production" : "development");
+  console.log(`[BOOT] Detected Environment: ${env} (NODE_ENV: ${process.env.NODE_ENV || "unset"}, hasDist: ${hasDist})`);
   console.log(`[BOOT] Working Directory: ${process.cwd()}`);
-  if (env !== "production") {
+  if (env !== "production" && !hasDist) {
     console.log("[BOOT] Starting with Vite Development Middleware...");
     const vite = await createViteServer({
       server: {
@@ -4048,4 +4062,10 @@ async function startServer() {
     console.log(`Dragon Tiger P2P Server running on http://localhost:${PORT}`);
   });
 }
+process.on("unhandledRejection", (reason, promise) => {
+  console.error("[PROCESS] Unhandled Rejection at:", promise, "reason:", reason);
+});
+process.on("uncaughtException", (err) => {
+  console.error("[PROCESS] Uncaught Exception:", err);
+});
 startServer();

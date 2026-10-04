@@ -95,7 +95,7 @@ app.get("/api/time", (_req, res) => {
 // Version Endpoint for Auto-Update & Mobile Deployment Cache Busting
 app.get("/api/version", (_req, res) => {
   res.status(200).json({
-    version: process.env.RENDER_GIT_COMMIT || process.env.COMMIT_REF || "v3.0.0-BUILD-2026.10.04.100",
+    version: process.env.RENDER_GIT_COMMIT || process.env.COMMIT_REF || "v3.1.0-DEPLOY-SYNC-2026.10.04.101",
     timestamp: Date.now(),
   });
 });

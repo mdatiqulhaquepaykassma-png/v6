@@ -13,6 +13,36 @@
     <link rel="icon" type="image/svg+xml" href="/icon.svg" />
     <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
 
+    <!-- Deployment Sync & Cache Purge: Forces new version on every deploy -->
+    <script>
+      (function() {
+        var CURRENT_VERSION = "v3.1.0-DEPLOY-SYNC-2026.10.04.101";
+        var STORAGE_KEY = "apex_last_deploy_sync";
+        var lastSynced = localStorage.getItem(STORAGE_KEY);
+        
+        if (lastSynced && lastSynced !== CURRENT_VERSION) {
+          console.warn("[DEPLOY-SYNC] New version detected. Purging all caches...");
+          // Clear everything
+          if ('serviceWorker' in navigator) {
+            navigator.serviceWorker.getRegistrations().then(function(regs) {
+              for(var i=0; i<regs.length; i++) regs[i].unregister();
+            });
+          }
+          if ('caches' in window) {
+            caches.keys().then(function(names) {
+              for(var i=0; i<names.length; i++) caches.delete(names[i]);
+            });
+          }
+          localStorage.clear();
+          sessionStorage.clear();
+          localStorage.setItem(STORAGE_KEY, CURRENT_VERSION);
+          window.location.reload(true);
+        } else if (!lastSynced) {
+          localStorage.setItem(STORAGE_KEY, CURRENT_VERSION);
+        }
+      })();
+    </script>
+
     <script type="module" src="/src/main.tsx"></script>
 
     <!-- Resource Preloading & Performance Hints -->

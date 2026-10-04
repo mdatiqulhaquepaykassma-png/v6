@@ -413,18 +413,6 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({
               </form>
             </>
           )}
-
-          {onBackAsGuest && (
-            <div className="mt-3 pt-3 border-t border-white/5">
-              <button
-                type="button"
-                onClick={onBackAsGuest}
-                className="w-full py-2 bg-neutral-900/90 hover:bg-neutral-800 border border-neutral-700/80 hover:border-amber-400/50 text-neutral-300 hover:text-white font-bold text-xs rounded-xl transition-all flex items-center justify-center gap-1.5 cursor-pointer active:scale-95 shadow-sm"
-              >
-                <span>← অতিথি হিসেবে গেম দেখুন (Browse as Guest)</span>
-              </button>
-            </div>
-          )}
         </div>
 
         {/* PWA & Version Footer */}
