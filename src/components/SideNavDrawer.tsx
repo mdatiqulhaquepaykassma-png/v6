@@ -395,11 +395,17 @@ export const SideNavDrawer: React.FC<SideNavDrawerProps> = ({
                     onClose();
                     onOpenInstallApp();
                   }}
-                  className="w-full py-2 bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-400 hover:to-amber-500 text-neutral-950 font-black text-xs rounded-xl shadow transition-transform active:scale-95 flex items-center justify-center gap-1.5 cursor-pointer"
+                  className={`w-full py-2 font-black text-xs rounded-xl shadow transition-transform active:scale-95 flex items-center justify-center gap-1.5 cursor-pointer ${
+                    isInstalled
+                      ? "bg-gradient-to-r from-emerald-500 to-teal-600 hover:from-emerald-400 hover:to-teal-500 text-neutral-950"
+                      : "bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-400 hover:to-amber-500 text-neutral-950"
+                  }`}
                 >
                   <Smartphone className="w-3.5 h-3.5 fill-current" />
                   <span>
-                    {lang === "bn" ? "ইনস্টল ও ওপেন গাইড" : "Install & Launch Guide"}
+                    {isInstalled
+                      ? (lang === "bn" ? "অ্যাপ ওপেন করুন" : "Open App")
+                      : (lang === "bn" ? "ইনস্টল ও ওপেন গাইড" : "Install & Launch Guide")}
                   </span>
                 </button>
               </div>

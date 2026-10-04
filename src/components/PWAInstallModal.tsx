@@ -153,6 +153,20 @@ export const PWAInstallModal: React.FC<PWAInstallModalProps> = ({
               </button>
             )}
 
+            {(isInstalled || installSuccess) && (
+              <div className="bg-emerald-500/10 border border-emerald-500/30 rounded-2xl p-3.5 space-y-1.5 text-xs text-neutral-200">
+                <p className="font-bold text-emerald-400 flex items-center gap-1.5">
+                  <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
+                  {lang === "bn" ? "মোবাইল অ্যাপ নির্দেশনা:" : "Mobile App Instructions:"}
+                </p>
+                <p className="text-[11px] leading-relaxed text-neutral-300">
+                  {lang === "bn" 
+                    ? "ব্রাউজারের সীমাবদ্ধতার কারণে সরাসরি অ্যাপ চালু করা না গেলে, আপনার মোবাইলের হোম স্ক্রীন থেকে 'APEX Casino' অ্যাপটি ওপেন করুন অথবা ব্রাউজারের মেনু (⋮ বা 📤) থেকে 'Open in APEX Casino' সিলেক্ট করুন।"
+                    : "If the app doesn't open automatically, please launch 'APEX Casino' from your device's Home Screen, or select 'Open in APEX Casino' from your browser's menu (⋮ or 📤)."}
+                </p>
+              </div>
+            )}
+
             <button
               onClick={() => {
                 sound.playButtonClick();

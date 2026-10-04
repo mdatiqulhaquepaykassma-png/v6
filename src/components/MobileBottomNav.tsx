@@ -84,13 +84,19 @@ export const MobileBottomNav = React.memo<MobileBottomNavProps>(({
             sound.playButtonClick();
             onOpenInstallApp();
           }}
-          className="flex-1 flex flex-col items-center justify-center gap-1 text-amber-300 hover:text-amber-200 transition-all cursor-pointer active:scale-95 group"
+          className={`flex-1 flex flex-col items-center justify-center gap-1 transition-all cursor-pointer active:scale-95 group ${
+            isInstalled ? "text-emerald-300 hover:text-emerald-200" : "text-amber-300 hover:text-amber-200"
+          }`}
         >
-          <div className="w-8 h-8 rounded-xl bg-amber-500/20 border border-amber-400/50 flex items-center justify-center text-amber-300 shadow-[0_0_12px_rgba(251,191,36,0.3)] group-hover:scale-105 transition-transform">
-            <Smartphone className="w-4 h-4 animate-pulse stroke-[2.2]" />
+          <div className={`w-8 h-8 rounded-xl border flex items-center justify-center group-hover:scale-105 transition-transform ${
+            isInstalled 
+              ? "bg-emerald-500/20 border-emerald-400/50 text-emerald-300 shadow-[0_0_12px_rgba(16,185,129,0.3)]" 
+              : "bg-amber-500/20 border-amber-400/50 text-amber-300 shadow-[0_0_12px_rgba(251,191,36,0.3)]"
+          }`}>
+            <Smartphone className={`w-4 h-4 stroke-[2.2] ${isInstalled ? "" : "animate-pulse"}`} />
           </div>
-          <span className="text-[8.5px] font-black uppercase tracking-wider text-amber-300">
-            Install
+          <span className={`text-[8.5px] font-black uppercase tracking-wider ${isInstalled ? "text-emerald-300" : "text-amber-300"}`}>
+            {isInstalled ? "Open" : "Install"}
           </span>
         </button>
       )}

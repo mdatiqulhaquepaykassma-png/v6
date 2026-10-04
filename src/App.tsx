@@ -25,6 +25,7 @@ import { MobileBottomNav } from "./components/MobileBottomNav";
 import { CurrencySelectorModal } from "./components/CurrencySelectorModal";
 import { TableEntryTransition } from "./components/TableEntryTransition";
 import { NetworkStatusBadge } from "./components/NetworkStatusBadge";
+import { PWAInstallModal } from "./components/PWAInstallModal";
 import { usePWAInstall } from "./utils/usePWAInstall";
 import { useWakeLock } from "./utils/useWakeLock";
 import { useDrag } from "@use-gesture/react";
@@ -281,6 +282,7 @@ export default function App() {
   const [isTransparencyOpen, setIsTransparencyOpen] = useState<boolean>(false);
   const [transparencyTab, setTransparencyTab] = useState<"charter" | "comparison" | "proofOfReserves" | "liveLedger" | "publicUsers">("charter");
   const [isReferralOpen, setIsReferralOpen] = useState<boolean>(false);
+  const [isPWAInstallOpen, setIsPWAInstallOpen] = useState<boolean>(false);
   const [latency, setLatency] = useState<number>(24);
   const latencyRef = useRef<number>(24);
 
@@ -327,8 +329,14 @@ export default function App() {
     sound.playButtonClick();
     if (isInstalled) {
       openApp();
+      setIsPWAInstallOpen(true);
+    } else if (!hasPrompt) {
+      setIsPWAInstallOpen(true);
     } else {
-      await install();
+      const success = await install();
+      if (!success) {
+        setIsPWAInstallOpen(true);
+      }
     }
   };
 
@@ -1203,6 +1211,19 @@ export default function App() {
           onClose={() => setIsRoadmapOpen(false)}
         />
       )}
+
+      <PWAInstallModal
+        isOpen={isPWAInstallOpen}
+        onClose={() => setIsPWAInstallOpen(false)}
+        lang={lang}
+        hasPrompt={hasPrompt}
+        isStandalone={isStandalone}
+        isInstalled={isInstalled}
+        isIOS={isIOS}
+        isAndroid={isAndroid}
+        onTriggerInstall={install}
+        onOpenApp={openApp}
+      />
 
       {isCurrencySelectorOpen && (
         <CurrencySelectorModal

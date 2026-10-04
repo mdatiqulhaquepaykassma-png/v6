@@ -9,6 +9,9 @@
   "orientation": "any",
   "background_color": "#07090e",
   "theme_color": "#0a0d14",
+  "launch_handler": {
+    "client_mode": "focus-existing"
+  },
   "icons": [
     {
       "src": "/icon.svg",
