@@ -326,9 +326,12 @@ export default function App() {
   const handleTriggerInstallApp = async () => {
     sound.playButtonClick();
     if (isInstalled) {
-      openApp();
+      await openApp();
     } else {
-      await install();
+      const success = await install();
+      if (!success) {
+        await openApp();
+      }
     }
   };
 

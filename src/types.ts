@@ -193,6 +193,8 @@ export interface P2PRoom {
   recentBetActionsCount?: number;
   isSingleRoundQuickChallenge?: boolean; // 1v1 quick challenge
   balanceType?: "real" | "demo";
+  latencyMs?: number; // network latency in ms
+  matchScore?: number; // compatibility match score percentage
 }
 
 export interface PlayerNote {

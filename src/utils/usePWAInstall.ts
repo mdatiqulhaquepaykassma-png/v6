@@ -16,7 +16,7 @@ export interface PWAInstallState {
   isMobile: boolean;
   hasPrompt: boolean;
   install: () => Promise<boolean>;
-  openApp: () => void;
+  openApp: () => Promise<void>;
 }
 
 export function usePWAInstall(): PWAInstallState {
@@ -161,20 +161,55 @@ export function usePWAInstall(): PWAInstallState {
     return false;
   }, [deferredPrompt]);
 
-  const openApp = useCallback(() => {
-    // If already running inside standalone app, nothing to do
+  const openApp = useCallback(async () => {
+    // If already running inside standalone app, nothing more needed
     if (checkIsStandalone()) {
       return;
     }
 
-    try {
-      // Direct navigation to app scope to trigger WebAPK / link-capturing
-      const targetUrl = window.location.origin + '/';
-      window.location.href = targetUrl;
-    } catch (e) {
-      window.location.href = '/';
+    // 1. If deferredPrompt is available, trigger native prompt immediately
+    const promptEvent = deferredPrompt || (typeof window !== 'undefined' && (window as any).__deferredInstallPrompt);
+    if (promptEvent) {
+      try {
+        await promptEvent.prompt();
+        const { outcome } = await promptEvent.userChoice;
+        if (outcome === 'accepted') {
+          setIsInstalled(true);
+          try {
+            localStorage.setItem('dt_pwa_installed', 'true');
+          } catch {}
+          return;
+        }
+      } catch (e) {
+        console.warn('Native prompt attempt during open:', e);
+      }
     }
-  }, []);
+
+    // 2. On Android, launch Android Intent to directly trigger installed WebAPK
+    if (typeof window !== 'undefined' && /android/i.test(navigator.userAgent)) {
+      try {
+        const host = window.location.host;
+        const intentUrl = `intent://${host}/#Intent;scheme=https;action=android.intent.action.VIEW;end;`;
+        window.location.href = intentUrl;
+        return;
+      } catch (e) {
+        console.warn('Intent launch failed, trying fallback:', e);
+      }
+    }
+
+    // 3. Direct link-capturing navigation
+    try {
+      const targetUrl = window.location.origin + '/?standalone=true';
+      const a = document.createElement('a');
+      a.href = targetUrl;
+      a.rel = 'noopener noreferrer';
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+    } catch (e) {
+      window.location.href = '/?standalone=true';
+    }
+  }, [deferredPrompt]);
 
   return {
     isInstallable: !!deferredPrompt,
