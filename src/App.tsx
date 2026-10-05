@@ -670,9 +670,12 @@ export default function App() {
 
     localStorage.removeItem("dt_user_id");
     localStorage.removeItem("dt_username");
+    localStorage.removeItem("dt_user_profile_backup");
     localStorage.removeItem("player_session_id");
+    localStorage.removeItem("dt_balance_type");
     sessionStorage.clear();
     setUser(null);
+    sound.playButtonClick();
   };
 
   const handleToggleSound = () => {
@@ -1181,6 +1184,10 @@ export default function App() {
           }}
           onUpdateWallet={setUser}
           onOpenReferral={() => setIsReferralOpen(true)}
+          onLogout={() => {
+            setIsProfileOpen(false);
+            handleLogout();
+          }}
         />
       )}
 

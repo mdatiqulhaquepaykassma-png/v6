@@ -34,6 +34,7 @@ interface UserProfileModalProps {
   onOpenWallet?: () => void;
   onUpdateWallet?: (user: UserWallet) => void;
   onOpenReferral?: () => void;
+  onLogout?: () => void;
 }
 
 export const UserProfileModal: React.FC<UserProfileModalProps> = ({
@@ -42,6 +43,7 @@ export const UserProfileModal: React.FC<UserProfileModalProps> = ({
   onOpenWallet,
   onUpdateWallet,
   onOpenReferral,
+  onLogout,
 }) => {
   const [activeTab, setActiveTab] = useState<"stats" | "cosmetics" | "tables" | "history">("stats");
   const [timeframe, setTimeframe] = useState<"all" | "today" | "week">("all");
@@ -1059,13 +1061,24 @@ export const UserProfileModal: React.FC<UserProfileModalProps> = ({
           </div>
 
           <div className="flex items-center gap-2 w-full sm:w-auto justify-end">
+            {onLogout && (
+              <button
+                onClick={() => {
+                  onClose();
+                  onLogout();
+                }}
+                className="px-3.5 py-2 rounded-xl bg-red-500/15 hover:bg-red-500/25 border border-red-500/30 text-red-400 hover:text-red-300 text-xs font-bold transition-colors cursor-pointer"
+              >
+                Sign Out
+              </button>
+            )}
             {onOpenWallet && (
               <button
                 onClick={() => {
                   onClose();
                   onOpenWallet();
                 }}
-                className="px-4 py-2 rounded-xl bg-amber-500 hover:bg-amber-400 text-neutral-950 text-xs font-black transition-colors flex items-center gap-1.5 shadow-md shadow-amber-500/20"
+                className="px-4 py-2 rounded-xl bg-amber-500 hover:bg-amber-400 text-neutral-950 text-xs font-black transition-colors flex items-center gap-1.5 shadow-md shadow-amber-500/20 cursor-pointer"
               >
                 <Coins className="w-3.5 h-3.5" />
                 Wallet &amp; Cashier
@@ -1073,7 +1086,7 @@ export const UserProfileModal: React.FC<UserProfileModalProps> = ({
             )}
             <button
               onClick={onClose}
-              className="px-4 py-2 rounded-xl bg-neutral-800 hover:bg-neutral-700 text-white text-xs font-semibold transition-colors"
+              className="px-4 py-2 rounded-xl bg-neutral-800 hover:bg-neutral-700 text-white text-xs font-semibold transition-colors cursor-pointer"
             >
               Close
             </button>
