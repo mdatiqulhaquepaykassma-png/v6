@@ -8,6 +8,9 @@
     <meta name="apple-mobile-web-app-capable" content="yes" />
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
     <meta name="apple-mobile-web-app-title" content="APEX Casino" />
+    <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate" />
+    <meta http-equiv="Pragma" content="no-cache" />
+    <meta http-equiv="Expires" content="0" />
     <link rel="manifest" href="/manifest.json" />
     <link rel="icon" type="image/png" href="/app-logo.png" />
     <link rel="icon" type="image/svg+xml" href="/icon.svg" />
@@ -29,40 +32,44 @@
         try { localStorage.setItem('dt_pwa_installed', 'true'); } catch(err) {}
         try { window.dispatchEvent(new CustomEvent('dt_pwa_status_change', { detail: { installed: true } })); } catch(err) {}
       });
-      if ('serviceWorker' in navigator) {
-        window.addEventListener('load', function() {
-          navigator.serviceWorker.register('/sw.js').catch(function() {});
-        });
-      }
-    </script>
 
-    <!-- Deployment Sync & Cache Purge: Forces new version on every deploy -->
-    <script>
+      // Pre-boot Build Timestamp & SW Cache Verifier (HEAD & Metadata check)
       (function() {
-        var CURRENT_VERSION = "v3.1.2-POLL-RELOAD-2026.10.04.102";
-        var STORAGE_KEY = "apex_last_deploy_sync";
-        var lastSynced = localStorage.getItem(STORAGE_KEY);
-        
-        if (lastSynced && lastSynced !== CURRENT_VERSION) {
-          console.warn("[DEPLOY-SYNC] New version detected. Purging all caches...");
-          // Clear everything
-          if ('serviceWorker' in navigator) {
-            navigator.serviceWorker.getRegistrations().then(function(regs) {
-              for(var i=0; i<regs.length; i++) regs[i].unregister();
-            });
-          }
-          if ('caches' in window) {
-            caches.keys().then(function(names) {
-              for(var i=0; i<names.length; i++) caches.delete(names[i]);
-            });
-          }
-          localStorage.clear();
-          sessionStorage.clear();
-          localStorage.setItem(STORAGE_KEY, CURRENT_VERSION);
-          window.location.reload(true);
-        } else if (!lastSynced) {
-          localStorage.setItem(STORAGE_KEY, CURRENT_VERSION);
-        }
+        try {
+          var LOCAL_KEY = 'dt_last_build_hash';
+          var storedHash = localStorage.getItem(LOCAL_KEY);
+          fetch('/sw-metadata.json?_t=' + Date.now(), {
+            method: 'GET',
+            cache: 'no-store',
+            headers: { 'Cache-Control': 'no-cache, no-store, must-revalidate', 'Pragma': 'no-cache' }
+          }).then(function(res) {
+            if (res && res.ok) return res.json();
+            return null;
+          }).then(function(data) {
+            if (data && (data.build_hash || data.build_timestamp)) {
+              var currentHash = String(data.build_hash || data.build_timestamp);
+              if (storedHash && storedHash !== currentHash) {
+                console.warn('[BOOT-SYNC] Build hash mismatch (' + storedHash + ' -> ' + currentHash + '). Purging SW caches & hard reloading...');
+                if ('serviceWorker' in navigator) {
+                  navigator.serviceWorker.getRegistrations().then(function(regs) {
+                    for (var i = 0; i < regs.length; i++) regs[i].unregister();
+                  });
+                }
+                if ('caches' in window) {
+                  caches.keys().then(function(names) {
+                    for (var j = 0; j < names.length; j++) caches.delete(names[j]);
+                  });
+                }
+                localStorage.setItem(LOCAL_KEY, currentHash);
+                localStorage.setItem('dt_app_running_version', currentHash);
+                window.location.reload(true);
+              } else if (!storedHash) {
+                localStorage.setItem(LOCAL_KEY, currentHash);
+                localStorage.setItem('dt_app_running_version', currentHash);
+              }
+            }
+          }).catch(function() {});
+        } catch(e) {}
       })();
     </script>
 

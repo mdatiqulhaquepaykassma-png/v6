@@ -34,6 +34,7 @@ import { getStoredCurrencyCode, setStoredCurrencyCode } from "./utils/currency";
 import { perfMonitor, useRenderTracker } from "./utils/perfDebugMonitor";
 import { ShieldAlert, RefreshCw, Sparkles, X } from "lucide-react";
 import { BUILD_NUMBER } from "./config/version";
+import { purgeCachesAndReload, checkForUpdates } from "./utils/autoUpdater";
 
 export default function App() {
   useRenderTracker("App");
@@ -68,52 +69,25 @@ export default function App() {
 
   const handleReloadNewVersion = async () => {
     setIsReloadingVersion(true);
-    try {
-      if (latestServerVersion) {
-        localStorage.setItem("dt_app_running_version", latestServerVersion);
-      }
-      if ('caches' in window) {
-        const keys = await caches.keys();
-        await Promise.all(keys.map(k => caches.delete(k)));
-      }
-      if ('serviceWorker' in navigator) {
-        const regs = await navigator.serviceWorker.getRegistrations();
-        await Promise.all(regs.map(r => r.unregister()));
-      }
-    } catch {}
-    window.location.reload();
+    await purgeCachesAndReload(latestServerVersion || undefined);
   };
 
-  // Auto-Update & Non-Intrusive Version Check with 5-min localStorage Cache
+  // Continuous Auto-Update Check: Automatically fetches latest deploy without blocking
   useEffect(() => {
-    const FIVE_MINUTES_MS = 5 * 60 * 1000;
-
     const checkVersion = async () => {
       try {
-        const now = Date.now();
-        const lastCheckStr = localStorage.getItem("dt_last_version_check_time");
-
-        // Prevent redundant API calls if checked within the last 5 minutes
-        if (lastCheckStr) {
-          const lastCheckTime = Number(lastCheckStr);
-          if (now - lastCheckTime < FIVE_MINUTES_MS) {
-            return;
-          }
-        }
-
-        const res = await fetch("/api/version", { cache: "no-store" });
+        const res = await fetch(`/api/version?_t=${Date.now()}`, { cache: "no-store" });
         if (res.ok) {
           const data = await res.json();
           if (data && data.version) {
-            localStorage.setItem("dt_last_version_check_time", now.toString());
-
             const runningVersion = localStorage.getItem("dt_app_running_version");
             if (!runningVersion) {
               localStorage.setItem("dt_app_running_version", data.version);
             } else if (runningVersion !== data.version) {
-              console.log("[AUTO-UPDATE] Mismatch detected: Server =", data.version, "| Client =", runningVersion);
+              console.log("[AUTO-UPDATE] Deploy mismatch: Server =", data.version, "| Client =", runningVersion);
               setLatestServerVersion(data.version);
-              setNewVersionAvailable(true);
+              // Auto-purge old caches and reload seamlessly
+              await purgeCachesAndReload(data.version);
             }
           }
         }
@@ -121,7 +95,7 @@ export default function App() {
     };
 
     checkVersion();
-    const interval = setInterval(checkVersion, 30000);
+    const interval = setInterval(checkVersion, 20000);
     const handleVisibility = () => {
       if (document.visibilityState === 'visible') {
         checkVersion();

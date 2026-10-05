@@ -39,6 +39,7 @@ import { ReportPlayerModal } from './ReportPlayerModal';
 import { PlayerNotesModal } from './PlayerNotesModal';
 import { LobbyRoomList } from './LobbyRoomList';
 import { useNotificationSystem } from '../utils/useNotificationSystem';
+import { useStableCallback } from '../utils/useStableCallback';
 import { sound } from '../utils/audio';
 import { formatCurrency, getStoredCurrencyCode, getActiveCurrencySymbol } from '../utils/currency';
 import { PullToRefresh } from './PullToRefresh';
@@ -601,8 +602,8 @@ export const P2PLobby = React.memo<P2PLobbyProps>(({ user, onUpdateWallet, onReq
     }, 1000);
   };
 
-  // Accept / Join Room
-  const handleAcceptRoom = useCallback(async (roomId: string) => {
+  // Stable Betting & Action Event Handlers (Prevents unnecessary re-renders in LobbyRoomList & P2PRoomCard)
+  const handleAcceptRoom = useStableCallback(async (roomId: string) => {
     if (!user) {
       onRequireLogin?.();
       return;
@@ -657,10 +658,10 @@ export const P2PLobby = React.memo<P2PLobbyProps>(({ user, onUpdateWallet, onReq
     } finally {
       setLoading(false);
     }
-  }, [user, onRequireLogin, onUpdateWallet, fetchRooms]);
+  });
 
-  // Cancel Room with 100% Refund
-  const handleCancelRoom = useCallback(async (roomId: string) => {
+  // Cancel Room with 100% Refund (Stable Callback)
+  const handleCancelRoom = useStableCallback(async (roomId: string) => {
     if (!user) {
       onRequireLogin?.();
       return;
@@ -691,38 +692,41 @@ export const P2PLobby = React.memo<P2PLobbyProps>(({ user, onUpdateWallet, onReq
     } finally {
       setLoading(false);
     }
-  }, [user, onRequireLogin, onUpdateWallet, fetchRooms]);
+  });
 
-  // Share Room Link to Clipboard
-  const handleShareRoom = useCallback((roomId: string) => {
+  // Share Room Link to Clipboard (Stable Callback)
+  const handleShareRoom = useStableCallback((roomId: string) => {
     sound.playButtonClick();
     const link = `${window.location.origin}?p2proom=${roomId}`;
     navigator.clipboard.writeText(link).then(() => {
       setCopiedRoomId(roomId);
       setTimeout(() => setCopiedRoomId(null), 3000);
     });
-  }, []);
+  });
 
-  // Notes Modal Trigger Helper
-  const handleSelectNotes = useCallback((opponent: { id: string; name: string }) => {
+  // Notes Modal Trigger Helper (Stable Callback)
+  const handleSelectNotes = useStableCallback((opponent: { id: string; name: string }) => {
     setSelectedOpponent(opponent);
     setShowNotesModal(true);
-  }, []);
+  });
 
-  // Clear filters helper
-  const handleClearFilters = useCallback(() => {
+  // Clear filters helper (Stable Callback)
+  const handleClearFilters = useStableCallback(() => {
     setSearchQuery('');
     setFilterMode('all');
     setStakeFilter('all');
-  }, []);
+  });
 
-  // Activity Indicator Color Helper
-  const getActivityColor = useCallback((score = 50) => {
+  // Activity Indicator Color Helper (Stable Callback)
+  const getActivityColor = useStableCallback((score = 50) => {
     if (score >= 80) return 'border-rose-500 text-rose-400 bg-rose-950/40 shadow-rose-950/50 animate-pulse';
     if (score >= 60) return 'border-amber-500 text-amber-400 bg-amber-950/40';
     if (score >= 40) return 'border-purple-500 text-purple-300 bg-purple-950/30';
     return 'border-cyan-500 text-cyan-400 bg-cyan-950/30';
-  }, []);
+  });
+
+  const stableToggleFavorite = useStableCallback(toggleFavoriteRoom);
+  const stableIsFavorite = useStableCallback(isFavorite);
 
   const handlePullRefresh = async () => {
     await Promise.allSettled([
@@ -1441,8 +1445,8 @@ export const P2PLobby = React.memo<P2PLobbyProps>(({ user, onUpdateWallet, onReq
                     currencySymbol={currencySymbol}
                     onAccept={handleAcceptRoom}
                     onCancel={handleCancelRoom}
-                    onToggleFavorite={toggleFavoriteRoom}
-                    isFavorite={isFavorite}
+                    onToggleFavorite={stableToggleFavorite}
+                    isFavorite={stableIsFavorite}
                     onShare={handleShareRoom}
                     onSelectNotes={handleSelectNotes}
                     getActivityColor={getActivityColor}

@@ -92,11 +92,20 @@ app.get("/api/time", (_req, res) => {
   });
 });
 
-// Version Endpoint for Auto-Update & Mobile Deployment Cache Busting
-app.get("/api/version", (_req, res) => {
+const SERVER_BOOT_TIME = Date.now();
+const SERVER_DEPLOY_ID = process.env.RENDER_GIT_COMMIT || process.env.COMMIT_REF || process.env.BUILD_ID || `deploy-${SERVER_BOOT_TIME}`;
+
+// Version & SW Metadata Endpoints for Auto-Update & Mobile Deployment Cache Busting
+app.get(["/api/version", "/sw-metadata.json"], (_req, res) => {
+  res.setHeader("Cache-Control", "no-store, no-cache, must-revalidate, proxy-revalidate, max-age=0");
+  res.setHeader("Pragma", "no-cache");
+  res.setHeader("Expires", "0");
   res.status(200).json({
-    version: process.env.RENDER_GIT_COMMIT || process.env.COMMIT_REF || "v3.1.2-POLL-RELOAD-2026.10.04.102",
-    timestamp: Date.now(),
+    build_timestamp: SERVER_BOOT_TIME,
+    build_hash: SERVER_DEPLOY_ID,
+    version: SERVER_DEPLOY_ID,
+    timestamp: SERVER_BOOT_TIME,
+    generated_at: new Date(SERVER_BOOT_TIME).toISOString(),
   });
 });
 
@@ -4892,14 +4901,26 @@ async function startServer() {
     console.log(`[BOOT] Serving production assets from: ${distPath}`);
 
     app.use(express.static(distPath, {
-      maxAge: "7d",
+      maxAge: 0,
       etag: true,
       lastModified: true,
       setHeaders: (res, filePath) => {
-        if (filePath.endsWith(".html")) {
-          res.setHeader("Cache-Control", "public, max-age=0, must-revalidate");
+        const lower = filePath.toLowerCase();
+        if (
+          lower.endsWith(".html") ||
+          lower.endsWith("sw.js") ||
+          lower.endsWith("manifest.json") ||
+          lower.endsWith("manifest.webmanifest") ||
+          lower.endsWith("version.json") ||
+          lower.includes("workbox-")
+        ) {
+          res.setHeader("Cache-Control", "no-store, no-cache, must-revalidate, proxy-revalidate, max-age=0");
+          res.setHeader("Pragma", "no-cache");
+          res.setHeader("Expires", "0");
         } else if (filePath.includes("/assets/")) {
           res.setHeader("Cache-Control", "public, max-age=31536000, immutable");
+        } else {
+          res.setHeader("Cache-Control", "public, max-age=3600, must-revalidate");
         }
       },
     }));

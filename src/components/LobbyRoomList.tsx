@@ -1,4 +1,5 @@
 import React from 'react';
+import { Virtuoso } from 'react-virtuoso';
 import { Swords } from 'lucide-react';
 import { UserWallet } from '../types';
 import { P2PRoomCard, EnrichedP2PRoom } from './P2PRoomCard';
@@ -52,9 +53,49 @@ export const LobbyRoomList = React.memo<LobbyRoomListProps>(
       );
     }
 
+    // Direct mapping for small lists (<= 6 items) for zero-overhead rendering
+    if (rooms.length <= 6) {
+      return (
+        <div className="space-y-2.5">
+          {rooms.map((room) => {
+            const isOwnRoom = user ? room.creatorId === user.userId : false;
+            const isInvitedForUser =
+              !!user &&
+              !!room.invitedUsername &&
+              room.invitedUsername.toLowerCase() === user.username.toLowerCase();
+            const isFav = isFavorite(room.id);
+            const isCopied = copiedRoomId === room.id;
+
+            return (
+              <P2PRoomCard
+                key={room.id}
+                room={room}
+                isOwnRoom={isOwnRoom}
+                isInvitedForUser={isInvitedForUser}
+                isFavorite={isFav}
+                isCopied={isCopied}
+                loading={loading}
+                currencySymbol={currencySymbol}
+                onAccept={onAccept}
+                onCancel={onCancel}
+                onToggleFavorite={onToggleFavorite}
+                onShare={onShare}
+                onSelectNotes={onSelectNotes}
+                getActivityColor={getActivityColor}
+              />
+            );
+          })}
+        </div>
+      );
+    }
+
+    // High-performance Virtualized Windowing list via react-virtuoso for larger datasets
     return (
-      <div className="space-y-2.5">
-        {rooms.map((room) => {
+      <Virtuoso
+        useWindowScroll
+        data={rooms}
+        overscan={400}
+        itemContent={(_index, room) => {
           const isOwnRoom = user ? room.creatorId === user.userId : false;
           const isInvitedForUser =
             !!user &&
@@ -64,25 +105,27 @@ export const LobbyRoomList = React.memo<LobbyRoomListProps>(
           const isCopied = copiedRoomId === room.id;
 
           return (
-            <P2PRoomCard
-              key={room.id}
-              room={room}
-              isOwnRoom={isOwnRoom}
-              isInvitedForUser={isInvitedForUser}
-              isFavorite={isFav}
-              isCopied={isCopied}
-              loading={loading}
-              currencySymbol={currencySymbol}
-              onAccept={onAccept}
-              onCancel={onCancel}
-              onToggleFavorite={onToggleFavorite}
-              onShare={onShare}
-              onSelectNotes={onSelectNotes}
-              getActivityColor={getActivityColor}
-            />
+            <div className="pb-2.5">
+              <P2PRoomCard
+                key={room.id}
+                room={room}
+                isOwnRoom={isOwnRoom}
+                isInvitedForUser={isInvitedForUser}
+                isFavorite={isFav}
+                isCopied={isCopied}
+                loading={loading}
+                currencySymbol={currencySymbol}
+                onAccept={onAccept}
+                onCancel={onCancel}
+                onToggleFavorite={onToggleFavorite}
+                onShare={onShare}
+                onSelectNotes={onSelectNotes}
+                getActivityColor={getActivityColor}
+              />
+            </div>
           );
-        })}
-      </div>
+        }}
+      />
     );
   }
 );

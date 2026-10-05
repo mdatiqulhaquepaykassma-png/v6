@@ -34,6 +34,7 @@
     "motion": "^12.23.24",
     "react": "^19.0.1",
     "react-dom": "^19.0.1",
+    "react-virtuoso": "^4.18.16",
     "recharts": "^3.10.1",
     "tailwindcss": "^4.3.3",
     "typescript": "^7.0.2",

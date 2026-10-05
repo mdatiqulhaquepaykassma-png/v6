@@ -239,6 +239,10 @@ export const P2PRoomCard = React.memo<P2PRoomCardProps>(
       prev.room.acceptorAmount === next.room.acceptorAmount &&
       prev.room.odds === next.room.odds &&
       prev.room.choice === next.room.choice &&
+      prev.room.creatorId === next.room.creatorId &&
+      prev.room.creatorName === next.room.creatorName &&
+      prev.room.creatorTitle === next.room.creatorTitle &&
+      prev.room.invitedUsername === next.room.invitedUsername &&
       prev.room.activityScore === next.room.activityScore &&
       prev.room.autoCloseSecondsRemaining === next.room.autoCloseSecondsRemaining &&
       prev.room.matchScore === next.room.matchScore &&
