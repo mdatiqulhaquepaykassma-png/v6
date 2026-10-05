@@ -26,7 +26,7 @@ import { CurrencySelectorModal } from "./components/CurrencySelectorModal";
 import { TableEntryTransition } from "./components/TableEntryTransition";
 import { NetworkStatusBadge } from "./components/NetworkStatusBadge";
 import { PWAInstallBanner } from "./components/PWAInstallBanner";
-import { usePWAInstall } from "./utils/usePWAInstall";
+import { useInstallationSync } from "./utils/useInstallationSync";
 import { useWakeLock } from "./utils/useWakeLock";
 import { useDrag } from "@use-gesture/react";
 import { motion, AnimatePresence } from "framer-motion";
@@ -286,7 +286,7 @@ export default function App() {
   const [transitionTableName, setTransitionTableName] = useState<string>("Classic Sanctum");
   const [transitionTableIcon, setTransitionTableIcon] = useState<string>("🎯");
 
-  // Direct PWA Install Trigger Hook
+  // Direct PWA Install Trigger Hook with Real-Time Event Sync & Zero Popups
   const {
     isInstallable,
     isInstalled,
@@ -294,16 +294,16 @@ export default function App() {
     isIOS,
     isAndroid,
     hasPrompt,
-    install,
+    directInstall,
     openApp,
-  } = usePWAInstall();
+  } = useInstallationSync();
 
   const handleTriggerInstallApp = async () => {
     sound.playButtonClick();
     if (isInstalled) {
       await openApp();
     } else {
-      const success = await install();
+      const success = await directInstall();
       if (!success) {
         await openApp();
       }

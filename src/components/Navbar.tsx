@@ -17,7 +17,7 @@ import { UserWallet } from "../types";
 import { BrandLogo } from "./BrandLogo";
 import { AnimatedRollingBalance } from "./AnimatedRollingBalance";
 import { CURRENCIES } from "../utils/currency";
-import { usePWAInstall, PWAInstallStatus } from "../utils/usePWAInstall";
+import { useInstallationSync } from "../utils/useInstallationSync";
 
 interface NavbarProps {
   user: UserWallet | null;
@@ -82,10 +82,25 @@ export const Navbar = React.memo<NavbarProps>(({
   lang = "bn",
   isLandscape = false,
 }) => {
-  const pwa = usePWAInstall();
-  const effectiveIsStandalone = isStandalone || pwa.isStandalone;
-  const effectiveIsInstalled = isInstalled || pwa.isInstalled || pwa.installStatus === "installed";
-  const effectiveOnOpenInstallApp = onOpenInstallApp || pwa.install;
+  const sync = useInstallationSync();
+  const effectiveIsStandalone = isStandalone || sync.isStandalone;
+  const effectiveIsInstalled = isInstalled || sync.isInstalled;
+
+  const handleInstallOrOpen = async () => {
+    if (onOpenInstallApp) {
+      onOpenInstallApp();
+      return;
+    }
+
+    if (effectiveIsInstalled) {
+      await sync.openApp();
+    } else {
+      const ok = await sync.directInstall();
+      if (!ok) {
+        await sync.openApp();
+      }
+    }
+  };
 
   const currencyCfg = (selectedCurrency && CURRENCIES[selectedCurrency]) || CURRENCIES.BDT || {
     symbol: "৳",
@@ -140,9 +155,9 @@ export const Navbar = React.memo<NavbarProps>(({
           </button>
 
           {/* INSTALL APP BUTTON (In the middle between DUAL and ELITE) */}
-          {effectiveOnOpenInstallApp && !effectiveIsStandalone && (
+          {!effectiveIsStandalone && (
             <button
-              onClick={effectiveOnOpenInstallApp}
+              onClick={handleInstallOrOpen}
               className={`flex items-center gap-1 px-2.5 py-1 rounded-lg text-[10px] font-black uppercase tracking-wider transition-all cursor-pointer border shadow-sm active:scale-95 ${
                 effectiveIsInstalled 
                   ? "bg-emerald-500/20 hover:bg-emerald-500/30 text-emerald-300 border-emerald-400/40 shadow-[0_0_10px_rgba(16,185,129,0.2)]"

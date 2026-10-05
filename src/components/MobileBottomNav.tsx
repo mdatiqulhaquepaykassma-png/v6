@@ -3,7 +3,7 @@ import { Swords, Trophy, Wallet, Gamepad2, Smartphone, History } from "lucide-re
 import { UserWallet } from "../types";
 import { sound } from "../utils/audio";
 import { formatCurrency, getStoredCurrencyCode } from "../utils/currency";
-import { usePWAInstall } from "../utils/usePWAInstall";
+import { useInstallationSync } from "../utils/useInstallationSync";
 
 interface MobileBottomNavProps {
   activeTab: "game" | "p2p" | "leaderboard";
@@ -34,10 +34,26 @@ export const MobileBottomNav = React.memo<MobileBottomNavProps>(({
   onOpenLogin,
   lang = "bn",
 }) => {
-  const pwa = usePWAInstall();
-  const effectiveIsStandalone = isStandalone || pwa.isStandalone;
-  const effectiveIsInstalled = isInstalled || pwa.isInstalled || pwa.installStatus === "installed";
-  const effectiveOnOpenInstallApp = onOpenInstallApp || pwa.install;
+  const sync = useInstallationSync();
+  const effectiveIsStandalone = isStandalone || sync.isStandalone;
+  const effectiveIsInstalled = isInstalled || sync.isInstalled;
+
+  const handleInstallOrOpen = async () => {
+    sound.playButtonClick();
+    if (onOpenInstallApp) {
+      onOpenInstallApp();
+      return;
+    }
+
+    if (effectiveIsInstalled) {
+      await sync.openApp();
+    } else {
+      const ok = await sync.directInstall();
+      if (!ok) {
+        await sync.openApp();
+      }
+    }
+  };
 
   const activeCurrencyCode = selectedCurrency || getStoredCurrencyCode();
 
@@ -85,13 +101,10 @@ export const MobileBottomNav = React.memo<MobileBottomNavProps>(({
       </button>
 
       {/* 3. Install App (In the middle between DUAL and ELITE) */}
-      {effectiveOnOpenInstallApp && !effectiveIsStandalone && (
+      {!effectiveIsStandalone && (
         <button
           type="button"
-          onClick={() => {
-            sound.playButtonClick();
-            effectiveOnOpenInstallApp();
-          }}
+          onClick={handleInstallOrOpen}
           className={`flex-1 flex flex-col items-center justify-center gap-1 transition-all cursor-pointer active:scale-95 group ${
             effectiveIsInstalled ? "text-emerald-300 hover:text-emerald-200" : "text-amber-300 hover:text-amber-200"
           }`}
