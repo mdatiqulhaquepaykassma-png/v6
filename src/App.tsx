@@ -1253,6 +1253,7 @@ export default function App() {
           user={user}
           selectedCurrency={selectedCurrency}
           onOpenLogin={() => setAuthScreenMode("signin")}
+          lang={lang}
         />
       )}
 

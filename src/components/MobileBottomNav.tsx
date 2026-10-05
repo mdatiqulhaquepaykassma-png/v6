@@ -16,6 +16,7 @@ interface MobileBottomNavProps {
   openRoomsCount?: number;
   selectedCurrency?: string;
   onOpenLogin?: () => void;
+  lang?: "bn" | "en";
 }
 
 export const MobileBottomNav = React.memo<MobileBottomNavProps>(({
@@ -30,6 +31,7 @@ export const MobileBottomNav = React.memo<MobileBottomNavProps>(({
   openRoomsCount = 0,
   selectedCurrency,
   onOpenLogin,
+  lang = "bn",
 }) => {
   const activeCurrencyCode = selectedCurrency || getStoredCurrencyCode();
 
@@ -96,7 +98,7 @@ export const MobileBottomNav = React.memo<MobileBottomNavProps>(({
             <Smartphone className={`w-4 h-4 stroke-[2.2] ${isInstalled ? "" : "animate-pulse"}`} />
           </div>
           <span className={`text-[8.5px] font-black uppercase tracking-wider ${isInstalled ? "text-emerald-300" : "text-amber-300"}`}>
-            {isInstalled ? "Open" : "Install"}
+            {isInstalled ? (lang === "bn" ? "ওপেন" : "Open") : (lang === "bn" ? "ইনস্টল" : "Install")}
           </span>
         </button>
       )}

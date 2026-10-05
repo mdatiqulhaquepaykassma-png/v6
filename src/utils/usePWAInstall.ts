@@ -30,8 +30,7 @@ export function usePWAInstall(): PWAInstallState {
       window.matchMedia('(display-mode: fullscreen)').matches ||
       window.matchMedia('(display-mode: minimal-ui)').matches ||
       (window.navigator as unknown as { standalone?: boolean }).standalone === true ||
-      document.referrer.includes('android-app://') ||
-      window.location.search.includes('standalone=true')
+      document.referrer.includes('android-app://')
     );
   };
 
@@ -45,7 +44,7 @@ export function usePWAInstall(): PWAInstallState {
   };
 
   const [isStandalone, setIsStandalone] = useState<boolean>(checkIsStandalone);
-  const [isInstalled, setIsInstalled] = useState<boolean>(() => checkIsStandalone() || checkStoredInstall());
+  const [isStoredInstalled, setIsStoredInstalled] = useState<boolean>(checkStoredInstall);
   const [isIOS, setIsIOS] = useState(false);
   const [isAndroid, setIsAndroid] = useState(false);
   const [isSafari, setIsSafari] = useState(false);
@@ -57,7 +56,7 @@ export function usePWAInstall(): PWAInstallState {
       const stand = checkIsStandalone();
       setIsStandalone(stand);
       if (stand) {
-        setIsInstalled(true);
+        setIsStoredInstalled(true);
         try {
           localStorage.setItem('dt_pwa_installed', 'true');
         } catch {}
@@ -76,7 +75,7 @@ export function usePWAInstall(): PWAInstallState {
       (navigator as any).getInstalledRelatedApps()
         .then((relatedApps: any[]) => {
           if (Array.isArray(relatedApps) && relatedApps.length > 0) {
-            setIsInstalled(true);
+            setIsStoredInstalled(true);
             try {
               localStorage.setItem('dt_pwa_installed', 'true');
             } catch {}
@@ -110,7 +109,7 @@ export function usePWAInstall(): PWAInstallState {
     };
 
     const handleAppInstalled = () => {
-      setIsInstalled(true);
+      setIsStoredInstalled(true);
       setDeferredPrompt(null);
       try {
         localStorage.setItem('dt_pwa_installed', 'true');
@@ -145,7 +144,7 @@ export function usePWAInstall(): PWAInstallState {
         await promptEvent.prompt();
         const { outcome } = await promptEvent.userChoice;
         if (outcome === 'accepted') {
-          setIsInstalled(true);
+          setIsStoredInstalled(true);
           try {
             localStorage.setItem('dt_pwa_installed', 'true');
           } catch {}
@@ -163,21 +162,24 @@ export function usePWAInstall(): PWAInstallState {
   }, [deferredPrompt]);
 
   const openApp = useCallback(async () => {
-    // If inside app, no action needed
+    // If already inside standalone app, no action needed
     if (checkIsStandalone()) return;
 
-    // Direct navigation to app scope in browser
+    // Direct navigation to launch PWA in standalone window
     try {
-      const targetUrl = window.location.origin + '/?standalone=true';
-      window.location.href = targetUrl;
+      window.location.href = window.location.origin + '/';
     } catch {
       window.location.href = '/';
     }
   }, []);
 
+  // If deferredPrompt is available, the app is definitely NOT installed yet
+  // If no deferredPrompt and stored installed / standalone / related apps confirmed, then isInstalled = true
+  const isInstalled = isStandalone || (!deferredPrompt && isStoredInstalled);
+
   return {
     isInstallable: !!deferredPrompt,
-    isInstalled: isStandalone || isInstalled,
+    isInstalled,
     isStandalone,
     isIOS,
     isAndroid,
