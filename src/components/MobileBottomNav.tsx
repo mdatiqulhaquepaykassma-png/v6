@@ -3,6 +3,7 @@ import { Swords, Trophy, Wallet, Gamepad2, Smartphone, History } from "lucide-re
 import { UserWallet } from "../types";
 import { sound } from "../utils/audio";
 import { formatCurrency, getStoredCurrencyCode } from "../utils/currency";
+import { usePWAInstall } from "../utils/usePWAInstall";
 
 interface MobileBottomNavProps {
   activeTab: "game" | "p2p" | "leaderboard";
@@ -33,6 +34,11 @@ export const MobileBottomNav = React.memo<MobileBottomNavProps>(({
   onOpenLogin,
   lang = "bn",
 }) => {
+  const pwa = usePWAInstall();
+  const effectiveIsStandalone = isStandalone || pwa.isStandalone;
+  const effectiveIsInstalled = isInstalled || pwa.isInstalled || pwa.installStatus === "installed";
+  const effectiveOnOpenInstallApp = onOpenInstallApp || pwa.install;
+
   const activeCurrencyCode = selectedCurrency || getStoredCurrencyCode();
 
   return (
@@ -79,26 +85,26 @@ export const MobileBottomNav = React.memo<MobileBottomNavProps>(({
       </button>
 
       {/* 3. Install App (In the middle between DUAL and ELITE) */}
-      {onOpenInstallApp && !isStandalone && (
+      {effectiveOnOpenInstallApp && !effectiveIsStandalone && (
         <button
           type="button"
           onClick={() => {
             sound.playButtonClick();
-            onOpenInstallApp();
+            effectiveOnOpenInstallApp();
           }}
           className={`flex-1 flex flex-col items-center justify-center gap-1 transition-all cursor-pointer active:scale-95 group ${
-            isInstalled ? "text-emerald-300 hover:text-emerald-200" : "text-amber-300 hover:text-amber-200"
+            effectiveIsInstalled ? "text-emerald-300 hover:text-emerald-200" : "text-amber-300 hover:text-amber-200"
           }`}
         >
           <div className={`w-8 h-8 rounded-xl border flex items-center justify-center group-hover:scale-105 transition-transform ${
-            isInstalled 
+            effectiveIsInstalled 
               ? "bg-emerald-500/20 border-emerald-400/50 text-emerald-300 shadow-[0_0_12px_rgba(16,185,129,0.3)]" 
               : "bg-amber-500/20 border-amber-400/50 text-amber-300 shadow-[0_0_12px_rgba(251,191,36,0.3)]"
           }`}>
-            <Smartphone className={`w-4 h-4 stroke-[2.2] ${isInstalled ? "" : "animate-pulse"}`} />
+            <Smartphone className={`w-4 h-4 stroke-[2.2] ${effectiveIsInstalled ? "" : "animate-pulse"}`} />
           </div>
-          <span className={`text-[8.5px] font-black uppercase tracking-wider ${isInstalled ? "text-emerald-300" : "text-amber-300"}`}>
-            {isInstalled ? (lang === "bn" ? "ওপেন" : "Open") : (lang === "bn" ? "ইনস্টল" : "Install")}
+          <span className={`text-[8.5px] font-black uppercase tracking-wider ${effectiveIsInstalled ? "text-emerald-300" : "text-amber-300"}`}>
+            {effectiveIsInstalled ? (lang === "bn" ? "ওপেন" : "Open") : (lang === "bn" ? "ইনস্টল" : "Install")}
           </span>
         </button>
       )}

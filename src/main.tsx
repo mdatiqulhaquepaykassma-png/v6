@@ -3,6 +3,7 @@ import {createRoot} from 'react-dom/client';
 import { registerSW } from 'virtual:pwa-register';
 import App from './App.tsx';
 import { ErrorBoundary } from './components/ErrorBoundary.tsx';
+import { PWAInstallProvider } from './utils/usePWAInstall.tsx';
 import { BUILD_NUMBER } from './config/version';
 import './index.css';
 
@@ -97,7 +98,9 @@ const init = async () => {
   createRoot(document.getElementById('root')!).render(
     <StrictMode>
       <ErrorBoundary>
-        <App />
+        <PWAInstallProvider>
+          <App />
+        </PWAInstallProvider>
       </ErrorBoundary>
     </StrictMode>,
   );

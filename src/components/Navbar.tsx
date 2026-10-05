@@ -17,6 +17,7 @@ import { UserWallet } from "../types";
 import { BrandLogo } from "./BrandLogo";
 import { AnimatedRollingBalance } from "./AnimatedRollingBalance";
 import { CURRENCIES } from "../utils/currency";
+import { usePWAInstall, PWAInstallStatus } from "../utils/usePWAInstall";
 
 interface NavbarProps {
   user: UserWallet | null;
@@ -81,6 +82,11 @@ export const Navbar = React.memo<NavbarProps>(({
   lang = "bn",
   isLandscape = false,
 }) => {
+  const pwa = usePWAInstall();
+  const effectiveIsStandalone = isStandalone || pwa.isStandalone;
+  const effectiveIsInstalled = isInstalled || pwa.isInstalled || pwa.installStatus === "installed";
+  const effectiveOnOpenInstallApp = onOpenInstallApp || pwa.install;
+
   const currencyCfg = (selectedCurrency && CURRENCIES[selectedCurrency]) || CURRENCIES.BDT || {
     symbol: "৳",
     symbolPosition: "prefix" as const,
@@ -134,20 +140,20 @@ export const Navbar = React.memo<NavbarProps>(({
           </button>
 
           {/* INSTALL APP BUTTON (In the middle between DUAL and ELITE) */}
-          {onOpenInstallApp && !isStandalone && (
+          {effectiveOnOpenInstallApp && !effectiveIsStandalone && (
             <button
-              onClick={onOpenInstallApp}
+              onClick={effectiveOnOpenInstallApp}
               className={`flex items-center gap-1 px-2.5 py-1 rounded-lg text-[10px] font-black uppercase tracking-wider transition-all cursor-pointer border shadow-sm active:scale-95 ${
-                isInstalled 
-                  ? "bg-emerald-500/20 hover:bg-emerald-500/30 text-emerald-300 border-emerald-400/40"
-                  : "bg-amber-500/20 hover:bg-amber-500/30 text-amber-300 border-amber-400/40"
+                effectiveIsInstalled 
+                  ? "bg-emerald-500/20 hover:bg-emerald-500/30 text-emerald-300 border-emerald-400/40 shadow-[0_0_10px_rgba(16,185,129,0.2)]"
+                  : "bg-amber-500/20 hover:bg-amber-500/30 text-amber-300 border-amber-400/40 shadow-[0_0_10px_rgba(251,191,36,0.2)]"
               }`}
-              title={isInstalled 
+              title={effectiveIsInstalled 
                 ? (lang === "bn" ? "অ্যাপ ওপেন করুন" : "Open App")
                 : (lang === "bn" ? "অ্যাপ ইনস্টল করুন" : "Install Mobile App")}
             >
-              <Smartphone className={`w-3.5 h-3.5 ${isInstalled ? "text-emerald-400" : "text-amber-400 animate-pulse"}`} />
-              <span>{isInstalled ? (lang === "bn" ? "ওপেন" : "Open") : (lang === "bn" ? "ইনস্টল" : "Install")}</span>
+              <Smartphone className={`w-3.5 h-3.5 ${effectiveIsInstalled ? "text-emerald-400" : "text-amber-400 animate-pulse"}`} />
+              <span>{effectiveIsInstalled ? (lang === "bn" ? "ওপেন" : "Open") : (lang === "bn" ? "ইনস্টল" : "Install")}</span>
             </button>
           )}
 
@@ -256,20 +262,20 @@ export const Navbar = React.memo<NavbarProps>(({
           )}
 
           {/* Mobile Install/Open App button (Visible on Mobile/Tablet in top header) */}
-          {onOpenInstallApp && !isStandalone && (
+          {effectiveOnOpenInstallApp && !effectiveIsStandalone && (
             <button
-              onClick={onOpenInstallApp}
+              onClick={effectiveOnOpenInstallApp}
               className={`flex md:hidden items-center gap-1 px-2 py-1 rounded-xl text-[10px] font-black uppercase tracking-wider transition-all cursor-pointer border shadow-sm active:scale-95 shrink-0 ${
-                isInstalled 
+                effectiveIsInstalled 
                   ? "bg-emerald-500/20 hover:bg-emerald-500/30 text-emerald-300 border-emerald-400/40 shadow-[0_0_10px_rgba(16,185,129,0.2)]" 
                   : "bg-amber-500/20 hover:bg-amber-500/30 text-amber-300 border-amber-400/40 shadow-[0_0_10px_rgba(251,191,36,0.2)]"
               }`}
-              title={isInstalled 
+              title={effectiveIsInstalled 
                 ? (lang === "bn" ? "অ্যাপ ওপেন করুন" : "Open App") 
                 : (lang === "bn" ? "অ্যাপ ইনস্টল করুন" : "Install Mobile App")}
             >
-              <Smartphone className={`w-3.5 h-3.5 ${isInstalled ? "text-emerald-400" : "text-amber-400 animate-pulse"}`} />
-              <span>{isInstalled ? (lang === "bn" ? "ওপেন" : "Open") : (lang === "bn" ? "ইনস্টল" : "Install")}</span>
+              <Smartphone className={`w-3.5 h-3.5 ${effectiveIsInstalled ? "text-emerald-400" : "text-amber-400 animate-pulse"}`} />
+              <span>{effectiveIsInstalled ? (lang === "bn" ? "ওপেন" : "Open") : (lang === "bn" ? "ইনস্টল" : "Install")}</span>
             </button>
           )}
 
