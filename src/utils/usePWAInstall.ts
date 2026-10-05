@@ -22,6 +22,7 @@ export interface PWAInstallState {
 export function usePWAInstall(): PWAInstallState {
   const [deferredPrompt, setDeferredPrompt] = useState<BeforeInstallPromptEvent | null>(null);
 
+  // Accurate standalone check (true ONLY when running inside installed app window / WebAPK / home screen PWA)
   const checkIsStandalone = (): boolean => {
     if (typeof window === 'undefined') return false;
     return (
@@ -30,8 +31,7 @@ export function usePWAInstall(): PWAInstallState {
       window.matchMedia('(display-mode: minimal-ui)').matches ||
       (window.navigator as unknown as { standalone?: boolean }).standalone === true ||
       document.referrer.includes('android-app://') ||
-      window.location.search.includes('standalone=true') ||
-      window.location.search.includes('pwa=1')
+      window.location.search.includes('standalone=true')
     );
   };
 
@@ -163,42 +163,17 @@ export function usePWAInstall(): PWAInstallState {
   }, [deferredPrompt]);
 
   const openApp = useCallback(async () => {
-    // 1. Try fullscreen for native casino app experience
-    try {
-      if (typeof document !== 'undefined' && document.documentElement && !document.fullscreenElement) {
-        if (document.documentElement.requestFullscreen) {
-          await document.documentElement.requestFullscreen().catch(() => {});
-        }
-      }
-    } catch {}
+    // If inside app, no action needed
+    if (checkIsStandalone()) return;
 
-    // 2. If prompt is available, trigger native prompt
-    const promptEvent = deferredPrompt || (typeof window !== 'undefined' && (window as any).__deferredInstallPrompt);
-    if (promptEvent) {
-      try {
-        await promptEvent.prompt();
-        const { outcome } = await promptEvent.userChoice;
-        if (outcome === 'accepted') {
-          setIsInstalled(true);
-          try {
-            localStorage.setItem('dt_pwa_installed', 'true');
-          } catch {}
-          return;
-        }
-      } catch (e) {
-        console.debug('Native prompt check:', e);
-      }
-    }
-
-    // 3. Direct clean navigation to root/PWA launcher
+    // Direct navigation to app scope in browser
     try {
-      if (!window.location.search.includes('pwa=1')) {
-        window.location.href = window.location.origin + '/?pwa=1';
-      }
-    } catch (e) {
+      const targetUrl = window.location.origin + '/?standalone=true';
+      window.location.href = targetUrl;
+    } catch {
       window.location.href = '/';
     }
-  }, [deferredPrompt]);
+  }, []);
 
   return {
     isInstallable: !!deferredPrompt,

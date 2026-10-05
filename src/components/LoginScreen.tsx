@@ -11,6 +11,8 @@ interface LoginScreenProps {
   onOpenInstallApp?: () => void;
   onBackAsGuest?: () => void;
   initialMode?: "signin" | "signup";
+  isStandalone?: boolean;
+  isInstalled?: boolean;
 }
 
 export const LoginScreen: React.FC<LoginScreenProps> = ({
@@ -18,6 +20,8 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({
   onOpenInstallApp,
   onBackAsGuest,
   initialMode = "signup",
+  isStandalone = false,
+  isInstalled = false,
 }) => {
   const [mode, setMode] = useState<"signin" | "signup">(initialMode);
   const [username, setUsername] = useState("");
@@ -417,13 +421,16 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({
 
         {/* PWA & Version Footer */}
         <div className="mt-4 flex items-center justify-between text-[11px] text-neutral-500 px-1">
-          {onOpenInstallApp && (
+          {onOpenInstallApp && !isStandalone && (
             <button
               type="button"
               onClick={onOpenInstallApp}
-              className="text-amber-400 hover:text-amber-300 font-bold transition-colors cursor-pointer"
+              className={`font-bold transition-colors cursor-pointer flex items-center gap-1 ${
+                isInstalled ? "text-emerald-400 hover:text-emerald-300" : "text-amber-400 hover:text-amber-300"
+              }`}
             >
-              📲 Install App (PWA)
+              <Smartphone className="w-3.5 h-3.5" />
+              <span>{isInstalled ? "Open Mobile App" : "Install Mobile App (PWA)"}</span>
             </button>
           )}
           <span className="font-mono ml-auto">Build #{BUILD_NUMBER}</span>

@@ -823,6 +823,8 @@ export default function App() {
         initialMode={authScreenMode}
         onLoginSuccess={handleLoginSuccess}
         onOpenInstallApp={handleTriggerInstallApp}
+        isStandalone={isStandalone}
+        isInstalled={isInstalled}
       />
     );
   }
