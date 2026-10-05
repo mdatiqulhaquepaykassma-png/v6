@@ -74,7 +74,11 @@ export const PWAInstallProvider: React.FC<{ children: React.ReactNode }> = ({ ch
   });
 
   const [isStandalone, setIsStandalone] = useState<boolean>(checkIsStandalone);
-  const [isStoredInstalled, setIsStoredInstalled] = useState<boolean>(checkStoredInstall);
+  const [isStoredInstalled, setIsStoredInstalled] = useState<boolean>(() => {
+    // If running in standalone PWA mode, it is definitely installed
+    if (checkIsStandalone()) return true;
+    return checkStoredInstall();
+  });
 
   const [isIOS, setIsIOS] = useState(false);
   const [isAndroid, setIsAndroid] = useState(false);
@@ -82,21 +86,51 @@ export const PWAInstallProvider: React.FC<{ children: React.ReactNode }> = ({ ch
   const [isChrome, setIsChrome] = useState(false);
   const [isMobile, setIsMobile] = useState(false);
 
+  // Dynamic verification for whether the PWA is installed on device or was uninstalled
+  const checkInstalledState = useCallback(async () => {
+    const standalone = checkIsStandalone();
+    setIsStandalone(standalone);
+
+    if (standalone) {
+      setIsStoredInstalled(true);
+      try {
+        localStorage.setItem('dt_pwa_installed', 'true');
+      } catch {}
+      return;
+    }
+
+    // In regular browser tab: check if app was uninstalled via getInstalledRelatedApps API
+    if (typeof navigator !== 'undefined' && 'getInstalledRelatedApps' in navigator) {
+      try {
+        const relatedApps = await (navigator as any).getInstalledRelatedApps();
+        if (Array.isArray(relatedApps)) {
+          if (relatedApps.length > 0) {
+            setIsStoredInstalled(true);
+            try {
+              localStorage.setItem('dt_pwa_installed', 'true');
+            } catch {}
+          } else {
+            // Empty list means the app is NOT installed or was uninstalled!
+            setIsStoredInstalled(false);
+            try {
+              localStorage.removeItem('dt_pwa_installed');
+            } catch {}
+          }
+        }
+      } catch {
+        // Fallback
+      }
+    }
+  }, []);
+
   useEffect(() => {
     // 1. Primary state detection via window.matchMedia('(display-mode: standalone)')
     const standaloneMQ = window.matchMedia('(display-mode: standalone)');
-    const updateDisplayState = (e?: MediaQueryListEvent | MediaQueryList) => {
-      const stand = (e ? e.matches : standaloneMQ.matches) || checkIsStandalone();
-      setIsStandalone(stand);
-      if (stand) {
-        setIsStoredInstalled(true);
-        try {
-          localStorage.setItem('dt_pwa_installed', 'true');
-        } catch {}
-      }
+    const updateDisplayState = () => {
+      checkInstalledState();
     };
 
-    updateDisplayState();
+    checkInstalledState();
 
     if (standaloneMQ.addEventListener) {
       standaloneMQ.addEventListener('change', updateDisplayState);
@@ -105,23 +139,14 @@ export const PWAInstallProvider: React.FC<{ children: React.ReactNode }> = ({ ch
     // 2. Pre-captured early event from window
     if (typeof window !== 'undefined' && (window as any).__deferredInstallPrompt) {
       setDeferredPrompt((window as any).__deferredInstallPrompt);
+      // If beforeinstallprompt exists, the app is not installed currently
+      setIsStoredInstalled(false);
+      try {
+        localStorage.removeItem('dt_pwa_installed');
+      } catch {}
     }
 
-    // 3. getInstalledRelatedApps API for Chromium based platforms
-    if (typeof navigator !== 'undefined' && 'getInstalledRelatedApps' in navigator) {
-      (navigator as any).getInstalledRelatedApps()
-        .then((relatedApps: any[]) => {
-          if (Array.isArray(relatedApps) && relatedApps.length > 0) {
-            setIsStoredInstalled(true);
-            try {
-              localStorage.setItem('dt_pwa_installed', 'true');
-            } catch {}
-          }
-        })
-        .catch(() => {});
-    }
-
-    // 4. Device and User Agent detection
+    // 3. Device and User Agent detection
     if (typeof window !== 'undefined') {
       const ua = window.navigator.userAgent.toLowerCase();
       const iosDevice = /iphone|ipad|ipod/.test(ua);
@@ -139,19 +164,26 @@ export const PWAInstallProvider: React.FC<{ children: React.ReactNode }> = ({ ch
       setIsChrome(isChromeBrowser);
     }
 
-    // 5. Native and custom installation event handlers
+    // 4. Native and custom installation event handlers
     const handleBeforeInstallPrompt = (e: Event) => {
       e.preventDefault();
       (window as any).__deferredInstallPrompt = e;
       (window as any).__pwaInstalled = false;
       setDeferredPrompt(e as BeforeInstallPromptEvent);
+      // When beforeinstallprompt fires, the app is eligible to be installed (i.e. uninstalled or not yet installed)
+      setIsStoredInstalled(false);
+      try {
+        localStorage.removeItem('dt_pwa_installed');
+      } catch {}
     };
 
     const handleAppInstalled = () => {
       setIsStoredInstalled(true);
       setDeferredPrompt(null);
-      (window as any).__deferredInstallPrompt = null;
-      (window as any).__pwaInstalled = true;
+      if (typeof window !== 'undefined') {
+        (window as any).__deferredInstallPrompt = null;
+        (window as any).__pwaInstalled = true;
+      }
       try {
         localStorage.setItem('dt_pwa_installed', 'true');
       } catch {}
@@ -160,6 +192,10 @@ export const PWAInstallProvider: React.FC<{ children: React.ReactNode }> = ({ ch
     const handlePromptReady = (e: any) => {
       if (e?.detail) {
         setDeferredPrompt(e.detail);
+        setIsStoredInstalled(false);
+        try {
+          localStorage.removeItem('dt_pwa_installed');
+        } catch {}
       }
     };
 
@@ -167,13 +203,36 @@ export const PWAInstallProvider: React.FC<{ children: React.ReactNode }> = ({ ch
       if (e?.detail?.installed) {
         setIsStoredInstalled(true);
         setDeferredPrompt(null);
+      } else if (e?.detail?.uninstalled) {
+        setIsStoredInstalled(false);
+        try {
+          localStorage.removeItem('dt_pwa_installed');
+        } catch {}
       }
+    };
+
+    // Re-verify on window focus / visibility change (e.g. user uninstalled app and returned to browser)
+    const handleVisibilityChange = () => {
+      if (!document.hidden) {
+        checkInstalledState();
+      }
+    };
+
+    const handleWindowFocus = () => {
+      checkInstalledState();
     };
 
     window.addEventListener('beforeinstallprompt', handleBeforeInstallPrompt);
     window.addEventListener('appinstalled', handleAppInstalled);
     window.addEventListener('dt_pwa_prompt_ready', handlePromptReady);
     window.addEventListener('dt_pwa_status_change', handleCustomStatusChange);
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+    window.addEventListener('focus', handleWindowFocus);
+
+    // Periodic check every 25s for uninstallation detection
+    const interval = setInterval(() => {
+      checkInstalledState();
+    }, 25000);
 
     return () => {
       if (standaloneMQ.removeEventListener) {
@@ -183,8 +242,11 @@ export const PWAInstallProvider: React.FC<{ children: React.ReactNode }> = ({ ch
       window.removeEventListener('appinstalled', handleAppInstalled);
       window.removeEventListener('dt_pwa_prompt_ready', handlePromptReady);
       window.removeEventListener('dt_pwa_status_change', handleCustomStatusChange);
+      document.removeEventListener('visibilitychange', handleVisibilityChange);
+      window.removeEventListener('focus', handleWindowFocus);
+      clearInterval(interval);
     };
-  }, []);
+  }, [checkInstalledState]);
 
   const install = useCallback(async (): Promise<boolean> => {
     const promptEvent = deferredPrompt || (typeof window !== 'undefined' && (window as any).__deferredInstallPrompt);

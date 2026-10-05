@@ -25,6 +25,7 @@ import { MobileBottomNav } from "./components/MobileBottomNav";
 import { CurrencySelectorModal } from "./components/CurrencySelectorModal";
 import { TableEntryTransition } from "./components/TableEntryTransition";
 import { NetworkStatusBadge } from "./components/NetworkStatusBadge";
+import { PWAInstallBanner } from "./components/PWAInstallBanner";
 import { usePWAInstall } from "./utils/usePWAInstall";
 import { useWakeLock } from "./utils/useWakeLock";
 import { useDrag } from "@use-gesture/react";
@@ -1230,6 +1231,9 @@ export default function App() {
           lang={lang}
         />
       )}
+
+      {/* Dynamic PWA Uninstalled / Missing Re-Install Floating Banner */}
+      <PWAInstallBanner lang={lang} />
 
       {/* Non-intrusive New Version Available Toast */}
       <AnimatePresence>
