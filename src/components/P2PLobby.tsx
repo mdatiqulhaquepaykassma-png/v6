@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import {
   Swords,
   Plus,
@@ -37,6 +37,7 @@ import { OneOnOneArena } from './OneOnOneArena';
 import { RoomCapacityChart } from './RoomCapacityChart';
 import { ReportPlayerModal } from './ReportPlayerModal';
 import { PlayerNotesModal } from './PlayerNotesModal';
+import { LobbyRoomList } from './LobbyRoomList';
 import { useNotificationSystem } from '../utils/useNotificationSystem';
 import { sound } from '../utils/audio';
 import { formatCurrency, getStoredCurrencyCode, getActiveCurrencySymbol } from '../utils/currency';
@@ -601,7 +602,7 @@ export const P2PLobby = React.memo<P2PLobbyProps>(({ user, onUpdateWallet, onReq
   };
 
   // Accept / Join Room
-  const handleAcceptRoom = async (roomId: string) => {
+  const handleAcceptRoom = useCallback(async (roomId: string) => {
     if (!user) {
       onRequireLogin?.();
       return;
@@ -656,10 +657,10 @@ export const P2PLobby = React.memo<P2PLobbyProps>(({ user, onUpdateWallet, onReq
     } finally {
       setLoading(false);
     }
-  };
+  }, [user, onRequireLogin, onUpdateWallet, fetchRooms]);
 
   // Cancel Room with 100% Refund
-  const handleCancelRoom = async (roomId: string) => {
+  const handleCancelRoom = useCallback(async (roomId: string) => {
     if (!user) {
       onRequireLogin?.();
       return;
@@ -690,25 +691,38 @@ export const P2PLobby = React.memo<P2PLobbyProps>(({ user, onUpdateWallet, onReq
     } finally {
       setLoading(false);
     }
-  };
+  }, [user, onRequireLogin, onUpdateWallet, fetchRooms]);
 
   // Share Room Link to Clipboard
-  const handleShareRoom = (roomId: string) => {
+  const handleShareRoom = useCallback((roomId: string) => {
     sound.playButtonClick();
     const link = `${window.location.origin}?p2proom=${roomId}`;
     navigator.clipboard.writeText(link).then(() => {
       setCopiedRoomId(roomId);
       setTimeout(() => setCopiedRoomId(null), 3000);
     });
-  };
+  }, []);
+
+  // Notes Modal Trigger Helper
+  const handleSelectNotes = useCallback((opponent: { id: string; name: string }) => {
+    setSelectedOpponent(opponent);
+    setShowNotesModal(true);
+  }, []);
+
+  // Clear filters helper
+  const handleClearFilters = useCallback(() => {
+    setSearchQuery('');
+    setFilterMode('all');
+    setStakeFilter('all');
+  }, []);
 
   // Activity Indicator Color Helper
-  const getActivityColor = (score = 50) => {
+  const getActivityColor = useCallback((score = 50) => {
     if (score >= 80) return 'border-rose-500 text-rose-400 bg-rose-950/40 shadow-rose-950/50 animate-pulse';
     if (score >= 60) return 'border-amber-500 text-amber-400 bg-amber-950/40';
     if (score >= 40) return 'border-purple-500 text-purple-300 bg-purple-950/30';
     return 'border-cyan-500 text-cyan-400 bg-cyan-950/30';
-  };
+  }, []);
 
   const handlePullRefresh = async () => {
     await Promise.allSettled([
@@ -1418,214 +1432,22 @@ export const P2PLobby = React.memo<P2PLobbyProps>(({ user, onUpdateWallet, onReq
                       </div>
                     ))}
                   </div>
-                ) : filteredRooms.length === 0 ? (
-                  <div className="text-center py-12 bg-neutral-950 rounded-2xl border border-neutral-800/80 space-y-2">
-                    <Swords className="w-8 h-8 text-neutral-600 mx-auto" />
-                    <p className="text-xs font-bold text-neutral-400">No rooms match your filter.</p>
-                    <button
-                      onClick={() => {
-                        setSearchQuery('');
-                        setFilterMode('all');
-                      }}
-                      className="text-xs text-amber-400 underline cursor-pointer"
-                    >
-                      Clear search filters
-                    </button>
-                  </div>
                 ) : (
-                  filteredRooms.map((room) => {
-                    const roomOdds = room.odds || 2.0;
-                    const acceptorStake = room.acceptorAmount || Math.round(room.amount * (roomOdds - 1));
-                    const totalPot = room.amount + acceptorStake;
-                    const isOwnRoom = user ? room.creatorId === user.userId : false;
-                    const isInvitedForUser =
-                      user &&
-                      room.invitedUsername &&
-                      room.invitedUsername.toLowerCase() === user.username.toLowerCase();
-
-                    // Calculate remaining auto-close timer
-                    const autoCloseSec = room.autoCloseSecondsRemaining ?? 240;
-                    const autoCloseMin = Math.floor(autoCloseSec / 60);
-                    const autoCloseRem = autoCloseSec % 60;
-                    const autoCloseFormatted = `${autoCloseMin.toString().padStart(2, '0')}:${autoCloseRem.toString().padStart(2, '0')}`;
-
-                    return (
-                      <div
-                        key={room.id}
-                        className={`bg-neutral-950 border ${
-                          isOwnRoom
-                            ? 'border-amber-500/50'
-                            : isInvitedForUser
-                            ? 'border-emerald-500/60 shadow-lg shadow-emerald-950/20'
-                            : 'border-neutral-800 hover:border-amber-500/40'
-                        } p-3.5 sm:p-4 rounded-2xl flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 transition-all`}
-                      >
-                        {/* Room Info Left */}
-                        <div className="space-y-2 w-full sm:w-auto">
-                          <div className="flex items-center gap-2 flex-wrap">
-                            {/* Activity Intensity Color Indicator */}
-                            <span
-                              className={`w-2.5 h-2.5 rounded-full border ${getActivityColor(room.activityScore)}`}
-                              title={`Activity Intensity: ${room.activityScore || 50}/100`}
-                            />
-
-                            {/* Host Username & Notes Trigger */}
-                            <button
-                              onClick={() => {
-                                setSelectedOpponent({ id: room.creatorId, name: room.creatorName });
-                                setShowNotesModal(true);
-                              }}
-                              className="text-xs sm:text-sm font-bold text-white hover:text-amber-300 flex items-center gap-1 cursor-pointer"
-                              title="Click to view/add private notes on this player"
-                            >
-                              <span>{room.creatorName}</span>
-                              <StickyNote className="w-3 h-3 text-neutral-400 hover:text-amber-400" />
-                            </button>
-
-                            {/* Recommendation Score Badge */}
-                            {room.matchScore && (
-                              <span className="text-[10px] font-mono px-1.5 py-0.2 rounded bg-amber-500/15 border border-amber-500/30 text-amber-300 font-bold">
-                                ⭐ {room.matchScore}% Match
-                              </span>
-                            )}
-
-                            {/* Latency (Ping) Badge */}
-                            <span
-                              className={`text-[10px] font-mono px-1.5 py-0.2 rounded border flex items-center gap-0.5 font-bold ${
-                                (room.latencyMs || 20) <= 25
-                                  ? 'bg-emerald-500/15 border-emerald-500/30 text-emerald-300'
-                                  : (room.latencyMs || 20) <= 45
-                                  ? 'bg-amber-500/15 border-amber-500/30 text-amber-300'
-                                  : 'bg-rose-500/15 border-rose-500/30 text-rose-300'
-                              }`}
-                              title="Real-time room network latency"
-                            >
-                              <Zap className="w-2.5 h-2.5" />
-                              <span>{room.latencyMs || 20}ms</span>
-                            </span>
-
-                            {/* Player / Spectator Count Badge */}
-                            <span
-                              className="text-[10px] font-mono px-1.5 py-0.2 rounded bg-cyan-500/15 border border-cyan-500/30 text-cyan-300 flex items-center gap-1 font-bold"
-                              title="Total players and spectators in this duel room"
-                            >
-                              <Users className="w-2.5 h-2.5" />
-                              <span>{(room as any).playerCount || 1} Online</span>
-                            </span>
-
-                            {/* Fast Action Badge */}
-                            {(room.isFastAction || room.isSingleRoundQuickChallenge) && (
-                              <span className="text-[10px] font-bold px-1.5 py-0.2 rounded bg-orange-500/15 border border-orange-500/30 text-orange-300 flex items-center gap-0.5">
-                                <Zap className="w-3 h-3" />
-                                Fast Action
-                              </span>
-                            )}
-
-                            {/* Hot Room Badge */}
-                            {room.isHotRoom && (
-                              <span className="text-[10px] font-bold px-1.5 py-0.2 rounded bg-rose-500/15 border border-rose-500/30 text-rose-300 flex items-center gap-0.5">
-                                <Flame className="w-3 h-3" />
-                                Hot Room
-                              </span>
-                            )}
-
-                            {/* Direct Invite Badge */}
-                            {room.invitedUsername && (
-                              <span className="text-[10px] font-mono px-1.5 py-0.2 rounded bg-purple-500/15 border border-purple-500/30 text-purple-300">
-                                🔒 For @{room.invitedUsername}
-                              </span>
-                            )}
-                          </div>
-
-                          {/* Room Stake Details */}
-                          <div className="flex items-center gap-1.5 sm:gap-2 text-[10px] sm:text-xs flex-wrap font-mono">
-                            <span className="text-amber-400 font-bold whitespace-nowrap">
-                              🎯 {roomOdds.toFixed(2)}x
-                            </span>
-                            <span className="text-neutral-600 hidden xs:inline">·</span>
-                            <span className="text-neutral-300">
-                              Host: <strong className="text-white">৳{room.amount.toLocaleString()}</strong> <span className="hidden xs:inline">({room.choice.toUpperCase()})</span>
-                            </span>
-                            <span className="text-neutral-600">·</span>
-                            <span className="text-emerald-400 font-bold">
-                              Challenger: ৳{acceptorStake.toLocaleString()}
-                            </span>
-                            <span className="text-neutral-600 hidden sm:inline">·</span>
-                            <span className="text-neutral-400 hidden sm:inline">
-                              Pot: ৳{totalPot.toLocaleString()}
-                            </span>
-                          </div>
-
-                          {/* Timers & Tags */}
-                          <div className="flex items-center gap-3 text-[11px] text-neutral-400">
-                            {/* Auto Close 5-minute Countdown */}
-                            <span className="flex items-center gap-1 font-mono text-neutral-400" title="Auto-closes if empty">
-                              <Clock className="w-3 h-3 text-amber-400" />
-                              <span>Closes in: <strong>{autoCloseFormatted}</strong></span>
-                            </span>
-
-                            {/* Last Active Timestamp */}
-                            <span>Active: Just now</span>
-
-                            {/* Tag Badges */}
-                            {room.tags?.slice(0, 2).map((t, idx) => (
-                              <span key={idx} className="bg-neutral-900 px-1.5 py-0.2 rounded text-[10px] text-neutral-400 border border-neutral-800">
-                                {t}
-                              </span>
-                            ))}
-                          </div>
-                        </div>
-
-                        {/* Room Actions Right */}
-                        <div className="flex items-center gap-2 w-full sm:w-auto justify-between sm:justify-end shrink-0 pt-2 sm:pt-0 border-t sm:border-t-0 border-white/5">
-                          {/* Favorite Star Button */}
-                          <button
-                            onClick={() => toggleFavoriteRoom(room.id)}
-                            className={`p-2 rounded-xl border transition-colors cursor-pointer ${
-                              isFavorite(room.id)
-                                ? 'bg-amber-500/20 text-amber-400 border-amber-500/40'
-                                : 'bg-neutral-900 text-neutral-500 border-neutral-800 hover:text-white'
-                            }`}
-                            title="Star room to get push alerts when round begins"
-                          >
-                            <Star className={`w-3.5 h-3.5 ${isFavorite(room.id) ? 'fill-current' : ''}`} />
-                          </button>
-
-                          {/* Share Link Button */}
-                          <button
-                            onClick={() => handleShareRoom(room.id)}
-                            className="p-2 rounded-xl bg-neutral-900 text-neutral-400 hover:text-white border border-neutral-800 transition-colors cursor-pointer"
-                            title="Share unique challenge link"
-                          >
-                            {copiedRoomId === room.id ? (
-                              <Check className="w-3.5 h-3.5 text-emerald-400" />
-                            ) : (
-                              <Share2 className="w-3.5 h-3.5" />
-                            )}
-                          </button>
-
-                          {/* Join / Accept or Cancel Button */}
-                          {isOwnRoom ? (
-                            <button
-                              onClick={() => handleCancelRoom(room.id)}
-                              disabled={loading}
-                              className="px-3.5 py-2 rounded-xl bg-neutral-900 hover:bg-red-500/20 text-red-400 hover:text-red-300 border border-red-500/30 text-xs font-bold transition-all cursor-pointer"
-                            >
-                              Cancel &amp; Refund
-                            </button>
-                          ) : (
-                            <button
-                              onClick={() => handleAcceptRoom(room.id)}
-                              disabled={loading}
-                              className="px-4 py-2 rounded-xl bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-400 hover:to-amber-500 text-neutral-950 font-black text-xs transition-all shadow-md active:scale-95 cursor-pointer"
-                            >
-                              Accept (৳{acceptorStake.toLocaleString()})
-                            </button>
-                          )}
-                        </div>
-                      </div>
-                    );
-                  })
+                  <LobbyRoomList
+                    rooms={filteredRooms}
+                    user={user}
+                    loading={loading}
+                    copiedRoomId={copiedRoomId}
+                    currencySymbol={currencySymbol}
+                    onAccept={handleAcceptRoom}
+                    onCancel={handleCancelRoom}
+                    onToggleFavorite={toggleFavoriteRoom}
+                    isFavorite={isFavorite}
+                    onShare={handleShareRoom}
+                    onSelectNotes={handleSelectNotes}
+                    getActivityColor={getActivityColor}
+                    onClearFilters={handleClearFilters}
+                  />
                 )}
               </div>
             </div>
