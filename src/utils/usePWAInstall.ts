@@ -30,7 +30,8 @@ export function usePWAInstall(): PWAInstallState {
       window.matchMedia('(display-mode: minimal-ui)').matches ||
       (window.navigator as unknown as { standalone?: boolean }).standalone === true ||
       document.referrer.includes('android-app://') ||
-      window.location.search.includes('standalone=true')
+      window.location.search.includes('standalone=true') ||
+      window.location.search.includes('pwa=1')
     );
   };
 
@@ -65,7 +66,7 @@ export function usePWAInstall(): PWAInstallState {
 
     updateDisplayState();
 
-    // Check pre-captured early event
+    // Check pre-captured early event from window
     if (typeof window !== 'undefined' && (window as any).__deferredInstallPrompt) {
       setDeferredPrompt((window as any).__deferredInstallPrompt);
     }
@@ -162,12 +163,16 @@ export function usePWAInstall(): PWAInstallState {
   }, [deferredPrompt]);
 
   const openApp = useCallback(async () => {
-    // If already running inside standalone app, nothing more needed
-    if (checkIsStandalone()) {
-      return;
-    }
+    // 1. Try fullscreen for native casino app experience
+    try {
+      if (typeof document !== 'undefined' && document.documentElement && !document.fullscreenElement) {
+        if (document.documentElement.requestFullscreen) {
+          await document.documentElement.requestFullscreen().catch(() => {});
+        }
+      }
+    } catch {}
 
-    // 1. If deferredPrompt is available, trigger native prompt immediately
+    // 2. If prompt is available, trigger native prompt
     const promptEvent = deferredPrompt || (typeof window !== 'undefined' && (window as any).__deferredInstallPrompt);
     if (promptEvent) {
       try {
@@ -181,33 +186,17 @@ export function usePWAInstall(): PWAInstallState {
           return;
         }
       } catch (e) {
-        console.warn('Native prompt attempt during open:', e);
+        console.debug('Native prompt check:', e);
       }
     }
 
-    // 2. On Android, launch Android Intent to directly trigger installed WebAPK
-    if (typeof window !== 'undefined' && /android/i.test(navigator.userAgent)) {
-      try {
-        const host = window.location.host;
-        const intentUrl = `intent://${host}/#Intent;scheme=https;action=android.intent.action.VIEW;end;`;
-        window.location.href = intentUrl;
-        return;
-      } catch (e) {
-        console.warn('Intent launch failed, trying fallback:', e);
-      }
-    }
-
-    // 3. Direct link-capturing navigation
+    // 3. Direct clean navigation to root/PWA launcher
     try {
-      const targetUrl = window.location.origin + '/?standalone=true';
-      const a = document.createElement('a');
-      a.href = targetUrl;
-      a.rel = 'noopener noreferrer';
-      document.body.appendChild(a);
-      a.click();
-      document.body.removeChild(a);
+      if (!window.location.search.includes('pwa=1')) {
+        window.location.href = window.location.origin + '/?pwa=1';
+      }
     } catch (e) {
-      window.location.href = '/?standalone=true';
+      window.location.href = '/';
     }
   }, [deferredPrompt]);
 
