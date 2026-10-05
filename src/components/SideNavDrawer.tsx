@@ -371,24 +371,32 @@ export const SideNavDrawer: React.FC<SideNavDrawerProps> = ({
 
             {/* INSTALL / OPEN APP PROMPT BUTTON (Hidden completely inside standalone PWA app) */}
             {onOpenInstallApp && !isStandalone && (
-              <div className="p-3 bg-gradient-to-r from-amber-500/15 via-neutral-900 to-amber-500/15 border border-amber-500/40 rounded-2xl space-y-2 shadow-lg">
+              <div className={`p-3 border rounded-2xl space-y-2 shadow-lg ${
+                isInstalled
+                  ? "bg-gradient-to-r from-emerald-500/15 via-neutral-900 to-emerald-500/15 border-emerald-500/40"
+                  : "bg-gradient-to-r from-amber-500/15 via-neutral-900 to-amber-500/15 border-amber-500/40"
+              }`}>
                 <div className="flex items-center justify-between">
                   <div className="flex items-center gap-2">
-                    <Smartphone className="w-4 h-4 text-amber-400 animate-pulse" />
-                    <span className="text-xs font-black text-amber-300">
+                    <Smartphone className={`w-4 h-4 ${isInstalled ? "text-emerald-400" : "text-amber-400 animate-pulse"}`} />
+                    <span className={`text-xs font-black ${isInstalled ? "text-emerald-300" : "text-amber-300"}`}>
                       {isInstalled
                         ? (lang === "bn" ? "মোবাইল অ্যাপ খুলুন" : "Open Mobile App")
                         : (lang === "bn" ? "মোবাইল অ্যাপ ইনস্টল করুন" : "Install Mobile App")}
                     </span>
                   </div>
-                  <span className="text-[9px] bg-amber-500/20 text-amber-300 border border-amber-500/30 px-1.5 py-0.5 rounded font-mono font-bold">
-                    PWA 1-Tap
+                  <span className={`text-[9px] px-1.5 py-0.5 rounded font-mono font-bold border ${
+                    isInstalled
+                      ? "bg-emerald-500/20 text-emerald-300 border-emerald-500/30"
+                      : "bg-amber-500/20 text-amber-300 border-amber-500/30"
+                  }`}>
+                    {isInstalled ? "INSTALLED" : "PWA 1-Tap"}
                   </span>
                 </div>
                 <p className="text-[10px] text-neutral-400 leading-snug">
                   {lang === "bn"
-                    ? "ফুল-স্ক্রিন ক্যাসিনো অভিজ্ঞতার জন্য ১-ক্লিকে অ্যাপ ইনস্টল বা ওপেন করুন।"
-                    : "Install or open the app in 1-click for a native full-screen casino experience."}
+                    ? (isInstalled ? "দ্রুত এবং মসৃণ গেমিংয়ের জন্য অ্যাপটি ওপেন করুন।" : "১-ক্লিকে অ্যাপ ইনস্টল করে সেরা অভিজ্ঞতা উপভোগ করুন।")
+                    : (isInstalled ? "Launch the native app for the smoothest casino gameplay." : "Install the web app in 1-click for a fast native casino experience.")}
                 </p>
                 <button
                   onClick={() => {

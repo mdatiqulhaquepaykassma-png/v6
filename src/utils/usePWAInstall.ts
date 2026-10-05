@@ -19,32 +19,51 @@ export interface PWAInstallState {
   openApp: () => Promise<void>;
 }
 
+/**
+ * Strict check for standalone PWA mode.
+ * Returns true ONLY if the current window is launched as an installed PWA (Home Screen app / WebAPK).
+ * Does NOT return true for regular browser tabs (even with full-screen or minimal-ui dynamic address bar).
+ */
+export const checkIsStandalone = (): boolean => {
+  if (typeof window === 'undefined') return false;
+  try {
+    const isStandaloneMQ = window.matchMedia('(display-mode: standalone)').matches;
+    const isIOSStandalone = (window.navigator as unknown as { standalone?: boolean }).standalone === true;
+    const isAndroidTWA = typeof document !== 'undefined' && document.referrer.startsWith('android-app://');
+    return isStandaloneMQ || isIOSStandalone || isAndroidTWA;
+  } catch {
+    return false;
+  }
+};
+
+const checkStoredInstall = (): boolean => {
+  if (typeof window === 'undefined') return false;
+  try {
+    return localStorage.getItem('dt_pwa_installed') === 'true';
+  } catch {
+    return false;
+  }
+};
+
 export function usePWAInstall(): PWAInstallState {
-  const [deferredPrompt, setDeferredPrompt] = useState<BeforeInstallPromptEvent | null>(null);
-
-  // Accurate standalone check (true ONLY when running inside installed app window / WebAPK / home screen PWA)
-  const checkIsStandalone = (): boolean => {
-    if (typeof window === 'undefined') return false;
-    return (
-      window.matchMedia('(display-mode: standalone)').matches ||
-      window.matchMedia('(display-mode: fullscreen)').matches ||
-      window.matchMedia('(display-mode: minimal-ui)').matches ||
-      (window.navigator as unknown as { standalone?: boolean }).standalone === true ||
-      document.referrer.includes('android-app://')
-    );
-  };
-
-  const checkStoredInstall = (): boolean => {
-    if (typeof window === 'undefined') return false;
-    try {
-      return localStorage.getItem('dt_pwa_installed') === 'true';
-    } catch {
-      return false;
+  const [deferredPrompt, setDeferredPrompt] = useState<BeforeInstallPromptEvent | null>(() => {
+    if (typeof window !== 'undefined' && (window as any).__deferredInstallPrompt) {
+      return (window as any).__deferredInstallPrompt;
     }
-  };
+    return null;
+  });
 
   const [isStandalone, setIsStandalone] = useState<boolean>(checkIsStandalone);
-  const [isStoredInstalled, setIsStoredInstalled] = useState<boolean>(checkStoredInstall);
+
+  // If running standalone, it is definitely installed.
+  // If a deferred install prompt is already pending, it is NOT yet installed.
+  // Otherwise, fallback to stored install status.
+  const [isInstalled, setIsInstalled] = useState<boolean>(() => {
+    if (checkIsStandalone()) return true;
+    if (typeof window !== 'undefined' && (window as any).__deferredInstallPrompt) return false;
+    return checkStoredInstall();
+  });
+
   const [isIOS, setIsIOS] = useState(false);
   const [isAndroid, setIsAndroid] = useState(false);
   const [isSafari, setIsSafari] = useState(false);
@@ -56,7 +75,7 @@ export function usePWAInstall(): PWAInstallState {
       const stand = checkIsStandalone();
       setIsStandalone(stand);
       if (stand) {
-        setIsStoredInstalled(true);
+        setIsInstalled(true);
         try {
           localStorage.setItem('dt_pwa_installed', 'true');
         } catch {}
@@ -68,14 +87,15 @@ export function usePWAInstall(): PWAInstallState {
     // Check pre-captured early event from window
     if (typeof window !== 'undefined' && (window as any).__deferredInstallPrompt) {
       setDeferredPrompt((window as any).__deferredInstallPrompt);
+      setIsInstalled(false);
     }
 
-    // Check getInstalledRelatedApps API if supported
+    // Check getInstalledRelatedApps API if supported in Chromium
     if (typeof navigator !== 'undefined' && 'getInstalledRelatedApps' in navigator) {
       (navigator as any).getInstalledRelatedApps()
         .then((relatedApps: any[]) => {
           if (Array.isArray(relatedApps) && relatedApps.length > 0) {
-            setIsStoredInstalled(true);
+            setIsInstalled(true);
             try {
               localStorage.setItem('dt_pwa_installed', 'true');
             } catch {}
@@ -102,25 +122,48 @@ export function usePWAInstall(): PWAInstallState {
       setIsChrome(isChromeBrowser);
     }
 
+    // When the browser offers an installation prompt, the app is definitely NOT installed yet
     const handleBeforeInstallPrompt = (e: Event) => {
       e.preventDefault();
       (window as any).__deferredInstallPrompt = e;
+      (window as any).__pwaInstalled = false;
       setDeferredPrompt(e as BeforeInstallPromptEvent);
+      setIsInstalled(false);
+      try {
+        localStorage.removeItem('dt_pwa_installed');
+      } catch {}
     };
 
+    // When the user installs the PWA, transition state immediately without reload
     const handleAppInstalled = () => {
-      setIsStoredInstalled(true);
+      setIsInstalled(true);
       setDeferredPrompt(null);
+      (window as any).__deferredInstallPrompt = null;
+      (window as any).__pwaInstalled = true;
       try {
         localStorage.setItem('dt_pwa_installed', 'true');
       } catch {}
-      if (typeof window !== 'undefined') {
-        (window as any).__deferredInstallPrompt = null;
+    };
+
+    // Listen to custom early-capture signals from index.html
+    const handlePromptReady = (e: any) => {
+      if (e?.detail) {
+        setDeferredPrompt(e.detail);
+        setIsInstalled(false);
+      }
+    };
+
+    const handleCustomStatusChange = (e: any) => {
+      if (e?.detail?.installed) {
+        setIsInstalled(true);
+        setDeferredPrompt(null);
       }
     };
 
     window.addEventListener('beforeinstallprompt', handleBeforeInstallPrompt);
     window.addEventListener('appinstalled', handleAppInstalled);
+    window.addEventListener('dt_pwa_prompt_ready', handlePromptReady);
+    window.addEventListener('dt_pwa_status_change', handleCustomStatusChange);
 
     const matchDisplay = window.matchMedia('(display-mode: standalone)');
     const handleDisplayChange = () => updateDisplayState();
@@ -131,6 +174,8 @@ export function usePWAInstall(): PWAInstallState {
     return () => {
       window.removeEventListener('beforeinstallprompt', handleBeforeInstallPrompt);
       window.removeEventListener('appinstalled', handleAppInstalled);
+      window.removeEventListener('dt_pwa_prompt_ready', handlePromptReady);
+      window.removeEventListener('dt_pwa_status_change', handleCustomStatusChange);
       if (matchDisplay.removeEventListener) {
         matchDisplay.removeEventListener('change', handleDisplayChange);
       }
@@ -144,14 +189,16 @@ export function usePWAInstall(): PWAInstallState {
         await promptEvent.prompt();
         const { outcome } = await promptEvent.userChoice;
         if (outcome === 'accepted') {
-          setIsStoredInstalled(true);
-          try {
-            localStorage.setItem('dt_pwa_installed', 'true');
-          } catch {}
+          setIsInstalled(true);
           setDeferredPrompt(null);
           if (typeof window !== 'undefined') {
             (window as any).__deferredInstallPrompt = null;
+            (window as any).__pwaInstalled = true;
           }
+          try {
+            localStorage.setItem('dt_pwa_installed', 'true');
+            window.dispatchEvent(new CustomEvent('dt_pwa_status_change', { detail: { installed: true } }));
+          } catch {}
           return true;
         }
       } catch (err) {
@@ -165,7 +212,7 @@ export function usePWAInstall(): PWAInstallState {
     // If already inside standalone app, no action needed
     if (checkIsStandalone()) return;
 
-    // Direct navigation to launch PWA in standalone window
+    // Direct navigation in browser
     try {
       window.location.href = window.location.origin + '/';
     } catch {
@@ -173,13 +220,12 @@ export function usePWAInstall(): PWAInstallState {
     }
   }, []);
 
-  // If deferredPrompt is available, the app is definitely NOT installed yet
-  // If no deferredPrompt and stored installed / standalone / related apps confirmed, then isInstalled = true
-  const isInstalled = isStandalone || (!deferredPrompt && isStoredInstalled);
+  // Compute final reactive installation state
+  const effectiveInstalled = isStandalone || (!deferredPrompt && isInstalled);
 
   return {
     isInstallable: !!deferredPrompt,
-    isInstalled,
+    isInstalled: effectiveInstalled,
     isStandalone,
     isIOS,
     isAndroid,

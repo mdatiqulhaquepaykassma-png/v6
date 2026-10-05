@@ -255,6 +255,24 @@ export const Navbar = React.memo<NavbarProps>(({
             </div>
           )}
 
+          {/* Mobile Install/Open App button (Visible on Mobile/Tablet in top header) */}
+          {onOpenInstallApp && !isStandalone && (
+            <button
+              onClick={onOpenInstallApp}
+              className={`flex md:hidden items-center gap-1 px-2 py-1 rounded-xl text-[10px] font-black uppercase tracking-wider transition-all cursor-pointer border shadow-sm active:scale-95 shrink-0 ${
+                isInstalled 
+                  ? "bg-emerald-500/20 hover:bg-emerald-500/30 text-emerald-300 border-emerald-400/40 shadow-[0_0_10px_rgba(16,185,129,0.2)]" 
+                  : "bg-amber-500/20 hover:bg-amber-500/30 text-amber-300 border-amber-400/40 shadow-[0_0_10px_rgba(251,191,36,0.2)]"
+              }`}
+              title={isInstalled 
+                ? (lang === "bn" ? "অ্যাপ ওপেন করুন" : "Open App") 
+                : (lang === "bn" ? "অ্যাপ ইনস্টল করুন" : "Install Mobile App")}
+            >
+              <Smartphone className={`w-3.5 h-3.5 ${isInstalled ? "text-emerald-400" : "text-amber-400 animate-pulse"}`} />
+              <span>{isInstalled ? (lang === "bn" ? "ওপেন" : "Open") : (lang === "bn" ? "ইনস্টল" : "Install")}</span>
+            </button>
+          )}
+
           {/* Menu Button */}
           <button
             type="button"

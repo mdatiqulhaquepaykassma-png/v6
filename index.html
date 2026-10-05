@@ -16,9 +16,18 @@
     <!-- Early PWA beforeinstallprompt capture -->
     <script>
       window.__deferredInstallPrompt = null;
+      window.__pwaInstalled = false;
       window.addEventListener('beforeinstallprompt', function(e) {
         e.preventDefault();
         window.__deferredInstallPrompt = e;
+        window.__pwaInstalled = false;
+        try { window.dispatchEvent(new CustomEvent('dt_pwa_prompt_ready', { detail: e })); } catch(err) {}
+      });
+      window.addEventListener('appinstalled', function(e) {
+        window.__pwaInstalled = true;
+        window.__deferredInstallPrompt = null;
+        try { localStorage.setItem('dt_pwa_installed', 'true'); } catch(err) {}
+        try { window.dispatchEvent(new CustomEvent('dt_pwa_status_change', { detail: { installed: true } })); } catch(err) {}
       });
       if ('serviceWorker' in navigator) {
         window.addEventListener('load', function() {
