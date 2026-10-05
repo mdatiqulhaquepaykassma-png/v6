@@ -94,7 +94,10 @@ export const LobbyRoomList = React.memo<LobbyRoomListProps>(
       <Virtuoso
         useWindowScroll
         data={rooms}
-        overscan={400}
+        computeItemKey={(_index, room) => room.id}
+        defaultItemHeight={82}
+        overscan={{ main: 600, reverse: 600 }}
+        style={{ width: '100%' }}
         itemContent={(_index, room) => {
           const isOwnRoom = user ? room.creatorId === user.userId : false;
           const isInvitedForUser =
@@ -105,7 +108,14 @@ export const LobbyRoomList = React.memo<LobbyRoomListProps>(
           const isCopied = copiedRoomId === room.id;
 
           return (
-            <div className="pb-2.5">
+            <div
+              className="pb-2.5"
+              style={{
+                contain: 'layout style paint',
+                contentVisibility: 'auto',
+                containIntrinsicSize: '0 82px',
+              }}
+            >
               <P2PRoomCard
                 key={room.id}
                 room={room}
