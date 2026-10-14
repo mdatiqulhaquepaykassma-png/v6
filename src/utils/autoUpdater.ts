@@ -1,7 +1,7 @@
 /**
- * APEX Casino - Automatic Deployment Sync & Cache Purge Engine
- * Ensures users automatically receive the latest deployed version, new buttons,
- * and fixes without getting stuck on old Service Worker caches or stale assets.
+ * APEX Casino - Safe Deployment Sync & Cache Manager
+ * Prevents infinite auto-reload loops while ensuring players can refresh
+ * when a genuine new version is released.
  */
 
 const PRESERVED_STORAGE_KEYS = [
@@ -23,13 +23,40 @@ const PRESERVED_STORAGE_KEYS = [
 
 let isPurgingAndReloading = false;
 
+// Infinite reload loop protection breaker (minimum 60s cooldown between reloads)
+const RELOAD_COOLDOWN_MS = 60000;
+
+function canAutoReload(): boolean {
+  if (typeof window === 'undefined') return false;
+  try {
+    const lastReload = sessionStorage.getItem('dt_last_auto_reload_ts');
+    if (lastReload) {
+      const elapsed = Date.now() - Number(lastReload);
+      if (elapsed < RELOAD_COOLDOWN_MS) {
+        console.warn(`[AUTO-UPDATE] Reload cooldown active (${Math.round((RELOAD_COOLDOWN_MS - elapsed) / 1000)}s left). Skipping auto-reload.`);
+        return false;
+      }
+    }
+  } catch {}
+  return true;
+}
+
+function markAutoReloaded() {
+  try {
+    sessionStorage.setItem('dt_last_auto_reload_ts', String(Date.now()));
+  } catch {}
+}
+
 /**
- * Safely purges stale browser caches, unregisters legacy service workers,
+ * Safely purges stale caches, unregisters old service workers,
  * preserves user login and preferences, and reloads to the fresh deployment.
  */
 export async function purgeCachesAndReload(newVersion?: string) {
   if (isPurgingAndReloading || typeof window === 'undefined') return;
+  if (!canAutoReload()) return;
+
   isPurgingAndReloading = true;
+  markAutoReloaded();
 
   console.warn(`[AUTO-UPDATE] Purging old caches and reloading to new version: ${newVersion || 'latest'}...`);
 
@@ -43,7 +70,7 @@ export async function purgeCachesAndReload(newVersion?: string) {
       } catch {}
     }
 
-    // 2. Unregister all existing Service Workers to drop old caches
+    // 2. Unregister legacy Service Workers to drop stale caches
     if ('serviceWorker' in navigator) {
       try {
         const registrations = await navigator.serviceWorker.getRegistrations();
@@ -53,7 +80,7 @@ export async function purgeCachesAndReload(newVersion?: string) {
       }
     }
 
-    // 3. Clear all CacheStorage entries
+    // 3. Clear CacheStorage
     if ('caches' in window) {
       try {
         const cacheKeys = await caches.keys();
@@ -63,13 +90,12 @@ export async function purgeCachesAndReload(newVersion?: string) {
       }
     }
 
-    // 4. Clear sessionStorage and non-critical localStorage
+    // 4. Clear non-critical localStorage
     try {
-      sessionStorage.clear();
       localStorage.clear();
     } catch {}
 
-    // 5. Restore preserved credentials and save running version
+    // 5. Restore preserved credentials and sync running version
     for (const [key, val] of Object.entries(preservedData)) {
       try {
         localStorage.setItem(key, val);
@@ -79,6 +105,7 @@ export async function purgeCachesAndReload(newVersion?: string) {
     if (newVersion) {
       try {
         localStorage.setItem('dt_app_running_version', newVersion);
+        localStorage.setItem('dt_last_build_hash', newVersion);
         localStorage.setItem('apex_last_deploy_sync', newVersion);
       } catch {}
     }
@@ -86,88 +113,94 @@ export async function purgeCachesAndReload(newVersion?: string) {
     console.error('[AUTO-UPDATE] Cache purge failed:', e);
   }
 
-  // Force hard reload from server
+  // Force clean reload
   window.location.reload();
 }
 
 /**
- * Checks the server for a newer deployment version via sw-metadata.json or /api/version.
+ * Checks the server for a newer deployment version without triggering disruptive reload loops.
  */
 export async function checkForUpdates(force = false): Promise<boolean> {
   if (typeof window === 'undefined' || isPurgingAndReloading) return false;
 
   try {
-    const res = await fetch(`/sw-metadata.json?_t=${Date.now()}`, {
+    const res = await fetch(`/api/version?_t=${Date.now()}`, {
       cache: 'no-store',
       headers: {
         'Cache-Control': 'no-cache, no-store, must-revalidate',
         Pragma: 'no-cache',
       },
-    }).catch(() => fetch(`/api/version?_t=${Date.now()}`, { cache: 'no-store' }));
+    }).catch(() => null);
 
     if (!res || !res.ok) return false;
 
     const data = await res.json();
-    const serverIdentifier = data?.build_hash || data?.build_timestamp || data?.version;
+    const serverIdentifier = data?.version || data?.build_hash || data?.build_timestamp;
 
     if (!serverIdentifier) return false;
 
     const currentVersion = localStorage.getItem('dt_app_running_version');
-    const currentHash = localStorage.getItem('dt_last_build_hash');
 
-    if (!currentVersion && !currentHash) {
-      // First boot: set current versions
+    if (!currentVersion) {
+      // First boot: store current server version
       localStorage.setItem('dt_app_running_version', String(serverIdentifier));
       localStorage.setItem('dt_last_build_hash', String(serverIdentifier));
       return false;
     }
 
-    const isDifferent = (currentVersion && currentVersion !== String(serverIdentifier)) ||
-                        (currentHash && currentHash !== String(serverIdentifier));
+    const isDifferent = currentVersion !== String(serverIdentifier);
 
-    if (isDifferent || force) {
-      console.warn(`[AUTO-UPDATE] New deployment detected! Current: ${currentVersion || currentHash} -> Server: ${serverIdentifier}`);
-      await purgeCachesAndReload(String(serverIdentifier));
-      return true;
+    if (isDifferent) {
+      console.log(`[AUTO-UPDATE] New version available on server: ${serverIdentifier} (Current: ${currentVersion})`);
+      
+      // Notify custom event so UI (toast) can show non-intrusively instead of forcing hard reload
+      window.dispatchEvent(
+        new CustomEvent('dt_new_version_available', {
+          detail: { newVersion: String(serverIdentifier) },
+        })
+      );
+
+      // Only hard reload if explicitly forced by user action
+      if (force && canAutoReload()) {
+        await purgeCachesAndReload(String(serverIdentifier));
+        return true;
+      }
     }
-  } catch (err) {
-    // Network drop or offline, silently ignore
+  } catch {
+    // Silently ignore network drop or offline
   }
 
   return false;
 }
 
 /**
- * Initializes continuous deployment checking and event listeners.
+ * Initializes continuous deployment checking safely without disruptive reload loops.
  */
 export function initAutoUpdater() {
   if (typeof window === 'undefined') return;
 
-  // 1. Initial check immediately on boot
-  checkForUpdates();
+  // Initial check after 3 seconds so initial page load is never interrupted
+  const initialTimeout = setTimeout(() => {
+    checkForUpdates();
+  }, 3000);
 
-  // 2. Periodic background check every 20 seconds
+  // Periodic check every 2 minutes (120s) instead of aggressive 20s
   const intervalId = setInterval(() => {
     checkForUpdates();
-  }, 20000);
+  }, 120000);
 
-  // 3. Immediate check whenever user switches back to this tab
+  // Check on tab re-focus (throttled)
+  let lastTabCheck = Date.now();
   const handleVisibility = () => {
-    if (document.visibilityState === 'visible') {
+    if (document.visibilityState === 'visible' && Date.now() - lastTabCheck > 60000) {
+      lastTabCheck = Date.now();
       checkForUpdates();
     }
   };
   document.addEventListener('visibilitychange', handleVisibility);
 
-  // 4. Auto-reload when new Service Worker takes control
-  if ('serviceWorker' in navigator) {
-    navigator.serviceWorker.addEventListener('controllerchange', () => {
-      console.log('[AUTO-UPDATE] Service Worker controller changed. Reloading fresh assets...');
-      window.location.reload();
-    });
-  }
-
   return () => {
+    clearTimeout(initialTimeout);
     clearInterval(intervalId);
     document.removeEventListener('visibilitychange', handleVisibility);
   };

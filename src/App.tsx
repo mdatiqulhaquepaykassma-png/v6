@@ -87,6 +87,7 @@ export default function App() {
             } else if (runningVersion !== data.version) {
               console.log("[AUTO-UPDATE] Deploy mismatch: Server =", data.version, "| Client =", runningVersion);
               setLatestServerVersion(data.version);
+              setNewVersionAvailable(true);
             }
           }
         }
@@ -94,17 +95,20 @@ export default function App() {
     };
 
     checkVersion();
-    const interval = setInterval(checkVersion, 60000);
-    const handleVisibility = () => {
-      if (document.visibilityState === 'visible') {
-        checkVersion();
+    const interval = setInterval(checkVersion, 120000);
+
+    const handleNewVersionEvent = (e: Event) => {
+      const customEvent = e as CustomEvent<{ newVersion: string }>;
+      if (customEvent.detail?.newVersion) {
+        setLatestServerVersion(customEvent.detail.newVersion);
+        setNewVersionAvailable(true);
       }
     };
-    document.addEventListener('visibilitychange', handleVisibility);
+    window.addEventListener("dt_new_version_available", handleNewVersionEvent);
 
     return () => {
       clearInterval(interval);
-      document.removeEventListener('visibilitychange', handleVisibility);
+      window.removeEventListener("dt_new_version_available", handleNewVersionEvent);
     };
   }, []);
 
