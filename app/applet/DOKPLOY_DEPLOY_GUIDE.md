@@ -12,6 +12,28 @@
 3. **Health Check Built-in:** `/api/health` এন্ডপয়েন্ট Dokploy এবং Docker-এর জন্য সার্বক্ষণিক কনটেইনার হেলথ মনিটর করে।
 4. **WebSocket & PWA Support:** পোর্ট `3000`-এ রিয়েলটাইম মাল্টিপ্লেয়ার ডুয়েল রুম এবং ওয়েবসকেট ফুল সাপোর্ট সহ রান করে।
 
+## ⚠️ "Failed to read app source directory (os error 2)" এর সমাধান
+
+আপনি যদি Dokploy-তে এই এররটি পেয়ে থাকেন:
+```text
+Error: Failed to read app source directory
+Caused by: No such file or directory (os error 2)
+❌ Nixpacks build failed
+```
+
+এর কারণ এবং তাৎক্ষণিক সমাধান:
+
+### ১. Base Directory (Root Directory) ঠিক করুন:
+- Dokploy অ্যাপের **General** বা **Deploy** সেটিংসে দেখুন **`Base Directory`** নামে একটি ফিল্ড আছে।
+- সেখানে যদি কোনো ভুল ফোল্ডারের নাম (যেমন: `/app`, `v6`, বা `/src`) লেখা থাকে, সেটি মুছে **`./`** দিন অথবা **খালি (Empty)** রাখুন। কারণ প্রজেক্টের সব ফাইল রিপোজিটরির মূল (Root) ডিরেক্টরিতে রয়েছে।
+
+### ২. Build Type হিসেবে "Dockerfile" সিলেক্ট করুন (সবচেয়ে ভালো):
+- Dokploy-তে **Build Type** ড্রপডাউন থেকে **`Nixpacks`**-এর বদলে **`Dockerfile`** সিলেক্ট করুন।
+- আমরা একটি সুপার-ফাস্ট multi-stage `Dockerfile` তৈরি করে রেখেছি, যা কোনো এরর ছাড়াই নিখুঁতভাবে প্রোডাকশন বিল্ড করে চালু করবে।
+
+### ৩. Nixpacks ব্যবহার করতে চাইলে:
+- আমরা রুটে `nixpacks.toml` যুক্ত করে দিয়েছি, যা Dokploy-র Nixpacks-কে স্বয়ংক্রিয়ভাবে Node 22 এবং প্রোডাকশন বিল্ড রান করতে নির্দেশ দেবে।
+
 ---
 
 ## 🛠️ ডিপ্লয় করার ২টি সহজ পদ্ধতি (2 Ways to Deploy in Dokploy)
