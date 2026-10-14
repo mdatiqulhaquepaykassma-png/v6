@@ -56,6 +56,7 @@ import { LiveBetFeed } from "./LiveBetFeed";
 import { LiveAction } from "./LiveAction";
 import { LiveBetTransparencyModal } from "./LiveBetTransparencyModal";
 import { WinningSideConfetti } from "./WinningSideConfetti";
+import { VictoryWinModal } from "./VictoryWinModal";
 import { useRenderTracker, perfMonitor } from "../utils/perfDebugMonitor";
 import virtualCasinoBg from "../assets/images/virtual_dragon_tiger_bg.webp";
 import confetti from "canvas-confetti";
@@ -1010,7 +1011,6 @@ export const GameTable = React.memo<GameTableProps>(({
 
             if (didWin && payout > 0) {
               setShowWinCelebration(true);
-              setTimeout(() => setShowWinCelebration(false), 2800);
 
               // Trigger Canvas Confetti Particle Blast on Win / Big Win!
               const isBigWin = payout >= 500 || matchedAmount >= 200;
@@ -1824,90 +1824,29 @@ export const GameTable = React.memo<GameTableProps>(({
           </motion.div>
         )}
       </AnimatePresence>
-      {/* Floating Coins & Grand Victory Celebration Overlay */}
-      <AnimatePresence>
-        {showWinCelebration && (
-          <motion.div
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
-            onClick={() => setShowWinCelebration(false)}
-            className="fixed inset-0 cursor-pointer z-[120] overflow-hidden flex flex-col items-center justify-center bg-black/40 backdrop-blur-sm select-none"
-          >
-            {/* 36 Dynamic Golden Coin & Gem Fountain */}
-            {[...Array(36)].map((_, i) => {
-              const angle = (i / 36) * Math.PI * 2;
-              const distance = 180 + (i % 6) * 60;
-              const destX = Math.cos(angle) * distance + (Math.random() - 0.5) * 60;
-              const destY = Math.sin(angle) * distance - 100 + (Math.random() - 0.5) * 60;
-              return (
-                <motion.div
-                  key={i}
-                  initial={{
-                    x: 0,
-                    y: 40,
-                    scale: 0.2,
-                    opacity: 1,
-                    rotate: 0,
-                  }}
-                  animate={{
-                    x: destX,
-                    y: destY,
-                    scale: [0.2, 1.4, 0.9],
-                    opacity: [1, 1, 0],
-                    rotate: (i % 2 === 0 ? 1 : -1) * (360 + i * 30),
-                  }}
-                  transition={{
-                    duration: 1.8 + (i % 4) * 0.2,
-                    ease: [0.22, 1, 0.36, 1],
-                    delay: (i % 6) * 0.04,
-                  }}
-                  className="absolute text-2xl sm:text-4xl drop-shadow-[0_0_20px_rgba(251,191,36,1)] select-none"
-                >
-                  {i % 4 === 0 ? "💎" : i % 3 === 0 ? "✨" : "🪙"}
-                </motion.div>
-              );
-            })}
-
-            {/* Grand Victory Marquee Banner */}
-            <motion.div
-              initial={{ scale: 0.3, opacity: 0, y: 60 }}
-              animate={{ scale: 1, opacity: 1, y: 0 }}
-              exit={{ scale: 0.6, opacity: 0 }}
-              transition={{ type: "spring", stiffness: 360, damping: 18 }}
-              className="relative px-8 sm:px-14 py-6 sm:py-8 bg-gradient-to-b from-neutral-950/95 via-amber-950/90 to-neutral-950/95 text-white font-black rounded-3xl shadow-[0_0_100px_rgba(251,191,36,0.9)] border-4 border-amber-400 flex flex-col items-center gap-2 z-50 max-w-sm sm:max-w-md text-center"
-            >
-              {/* Spinning Radiant Corona */}
-              <motion.div
-                animate={{ rotate: 360 }}
-                transition={{ duration: 12, repeat: Infinity, ease: "linear" }}
-                className="absolute -inset-4 rounded-3xl border border-amber-400/40 pointer-events-none"
-              />
-
-              <div className="w-16 h-16 sm:w-20 sm:h-20 rounded-full bg-gradient-to-tr from-amber-500 via-yellow-300 to-amber-600 flex items-center justify-center shadow-[0_0_30px_rgba(251,191,36,1)] border-2 border-yellow-200">
-                <Crown className="w-9 h-9 sm:w-11 sm:h-11 text-neutral-950 fill-neutral-950" />
-              </div>
-
-              <span className="text-2xl sm:text-4xl font-black bg-gradient-to-r from-yellow-200 via-amber-300 to-yellow-400 bg-clip-text text-transparent drop-shadow uppercase tracking-wider">
-                BIG WINNER!
-              </span>
-
-              <span className="text-xs sm:text-sm font-black text-amber-200/90 tracking-[0.25em] uppercase font-mono">
-                {activeConfirmedBet?.side} TRIUMPH
-              </span>
-
-              {activeConfirmedBet && (
-                <div className="mt-2 px-5 py-1.5 rounded-full bg-black/80 border border-amber-400 text-amber-300 font-mono font-black text-base sm:text-xl shadow-inner">
-                  +{formatAmt(
-                    lastWinPayout > 0 ? lastWinPayout : Math.floor(activeConfirmedBet.amount * 1.9),
-                    true
-                  )}
-                </div>
-              )}
-            </motion.div>
-          </motion.div>
-        )}
-      </AnimatePresence>
+      {/* Redesigned Mobile-First Macau VIP Victory Celebration Modal */}
+      <VictoryWinModal
+        isOpen={showWinCelebration}
+        onClose={() => setShowWinCelebration(false)}
+        winnerSide={currentRound?.result || (activeConfirmedBet?.side as any) || "DRAGON"}
+        payoutAmount={
+          lastWinPayout > 0
+            ? lastWinPayout
+            : activeConfirmedBet
+            ? Math.floor(activeConfirmedBet.amount * (currentRound?.result === "TIE" ? 11 : 1.9))
+            : 0
+        }
+        betAmount={activeConfirmedBet?.amount || 0}
+        multiplier={currentRound?.result === "TIE" ? 11 : 1.9}
+        dragonCard={currentRound?.dragonCard}
+        tigerCard={currentRound?.tigerCard}
+        formatAmt={formatAmt}
+        onRebet={(side, amount) => {
+          handleSelectSide(side);
+          setSelectedAmount(amount);
+        }}
+        autoCloseDuration={6000}
+      />
 
       {/* Top Slide-In Bet Accepted Server Notification Toast */}
       <AnimatePresence>
