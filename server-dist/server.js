@@ -1,5 +1,6 @@
 // server.ts
 import express from "express";
+import compression from "compression";
 import fs from "fs";
 import path from "path";
 import { fileURLToPath } from "url";
@@ -156,16 +157,37 @@ function kickSession(sessionId, reason) {
   });
 }
 app.set("trust proxy", 1);
+app.use(
+  compression({
+    level: 6,
+    threshold: 256,
+    // Compress any response > 256 bytes
+    filter: (req, res) => {
+      if (req.headers["x-no-compression"]) {
+        return false;
+      }
+      return compression.filter(req, res);
+    }
+  })
+);
 app.use(express.json({ limit: "10mb" }));
 app.use(express.urlencoded({ extended: true, limit: "10mb" }));
-app.use((req, res, next) => {
-  if (!req.url.includes("/assets/") && !req.url.includes(".svg")) {
-    console.log(`[REQ] ${req.method} ${req.url} - ${(/* @__PURE__ */ new Date()).toISOString()}`);
+function sendJsonWithETag(req, res, data, maxAgeSeconds = 2) {
+  const jsonStr = JSON.stringify(data);
+  const etag = `"${crypto.createHash("md5").update(jsonStr).digest("hex").slice(0, 16)}"`;
+  res.setHeader("ETag", etag);
+  res.setHeader("Cache-Control", `public, max-age=${maxAgeSeconds}, must-revalidate`);
+  if (req.headers["if-none-match"] === etag) {
+    return res.status(304).end();
   }
+  res.setHeader("Content-Type", "application/json; charset=utf-8");
+  return res.send(jsonStr);
+}
+app.use((req, res, next) => {
   const start = Date.now();
   res.on("finish", () => {
     const duration = Date.now() - start;
-    if (duration > 1500) {
+    if (duration > 3e3) {
       console.warn(`[SLOW-REQ] ${req.method} ${req.url} took ${duration}ms`);
     }
   });
@@ -192,10 +214,18 @@ app.get("/api/time", (_req, res) => {
     iso: (/* @__PURE__ */ new Date()).toISOString()
   });
 });
-app.get("/api/version", (_req, res) => {
+var SERVER_BOOT_TIME = Date.now();
+var SERVER_DEPLOY_ID = process.env.RENDER_GIT_COMMIT || process.env.COMMIT_REF || process.env.BUILD_ID || `deploy-${SERVER_BOOT_TIME}`;
+app.get(["/api/version", "/sw-metadata.json"], (_req, res) => {
+  res.setHeader("Cache-Control", "no-store, no-cache, must-revalidate, proxy-revalidate, max-age=0");
+  res.setHeader("Pragma", "no-cache");
+  res.setHeader("Expires", "0");
   res.status(200).json({
-    version: process.env.RENDER_GIT_COMMIT || process.env.COMMIT_REF || "v3.1.0-DEPLOY-SYNC-2026.10.04.101",
-    timestamp: Date.now()
+    build_timestamp: SERVER_BOOT_TIME,
+    build_hash: SERVER_DEPLOY_ID,
+    version: SERVER_DEPLOY_ID,
+    timestamp: SERVER_BOOT_TIME,
+    generated_at: new Date(SERVER_BOOT_TIME).toISOString()
   });
 });
 app.get(["/admin", "/admin/*"], (req, res) => {
@@ -205,7 +235,19 @@ app.get(["/admin", "/admin/*"], (req, res) => {
     res.redirect("/#/admin");
   }
 });
-var PORT = Number(process.env.PORT) || 3e3;
+function parseArg(flag) {
+  const idx = process.argv.indexOf(flag);
+  if (idx !== -1 && process.argv[idx + 1]) {
+    return process.argv[idx + 1];
+  }
+  const prefixMatch = process.argv.find((a) => a.startsWith(`${flag}=`));
+  if (prefixMatch) {
+    return prefixMatch.split("=")[1];
+  }
+  return void 0;
+}
+var PORT = Number(parseArg("--port") || process.env.PORT) || 3e3;
+var HOST = parseArg("--host") || process.env.HOST || "0.0.0.0";
 function getGeminiClient() {
   const apiKey = process.env.GEMINI_API_KEY;
   if (!apiKey) return null;
@@ -1068,8 +1110,13 @@ function settleDuelOnFold(duel, foldingUserId) {
   const companyProfit = new Decimal(totalPot).times(0.05).round().toNumber();
   const winnerPayout = new Decimal(totalPot).minus(companyProfit).toNumber();
   const winnerRole = isCreator ? duel.acceptorRole : duel.creatorRole;
+  const isDemo = duel.balanceType === "demo";
   if (winnerUser) {
-    winnerUser.balance += winnerPayout;
+    if (isDemo) {
+      winnerUser.demoBalance += winnerPayout;
+    } else {
+      winnerUser.balance += winnerPayout;
+    }
     winnerUser.totalWon += winnerPayout - (isCreator ? duel.acceptorBet : duel.creatorBet);
     winnerUser.gamesPlayed += 1;
     addTransactionToUser(winnerUser, {
@@ -1077,7 +1124,7 @@ function settleDuelOnFold(duel, foldingUserId) {
       type: "deposit",
       amount: winnerPayout,
       timestamp: (/* @__PURE__ */ new Date()).toISOString(),
-      description: `1v1 Duel Win (Opponent Folded) on Round #${duel.id}! Payout: \u09F3${winnerPayout.toLocaleString()} (Pot: \u09F3${totalPot.toLocaleString()}, House 5%: \u09F3${companyProfit.toLocaleString()})`
+      description: `1v1 Duel Win (Opponent Folded) (${isDemo ? "Demo" : "Real"}) on Round #${duel.id}! Payout: \u09F3${winnerPayout.toLocaleString()} (Pot: \u09F3${totalPot.toLocaleString()}, House 5%: \u09F3${companyProfit.toLocaleString()})`
     });
     const stats = ensureUserStats(winnerUser);
     stats.totalHandsPlayed += 1;
@@ -1189,8 +1236,13 @@ function settleDuelOnShowdown(duel) {
     const loserUser = mockUsers[loserId];
     const winnerBet = creatorIsWinner ? duel.creatorBet : duel.acceptorBet;
     const loserBet = creatorIsWinner ? duel.acceptorBet : duel.creatorBet;
+    const isDemo = duel.balanceType === "demo";
     if (winnerUser) {
-      winnerUser.balance += winnerPayout;
+      if (isDemo) {
+        winnerUser.demoBalance += winnerPayout;
+      } else {
+        winnerUser.balance += winnerPayout;
+      }
       winnerUser.totalWon += winnerPayout - winnerBet;
       winnerUser.gamesPlayed += 1;
       addTransactionToUser(winnerUser, {
@@ -1198,7 +1250,7 @@ function settleDuelOnShowdown(duel) {
         type: "deposit",
         amount: winnerPayout,
         timestamp: (/* @__PURE__ */ new Date()).toISOString(),
-        description: `1v1 Showdown WIN vs @${loserUser?.username || "Player"}! Payout: \u09F3${winnerPayout.toLocaleString()} (Pot: \u09F3${totalPot.toLocaleString()}, House 5%: \u09F3${companyProfit.toLocaleString()})`
+        description: `1v1 Showdown WIN (${isDemo ? "Demo" : "Real"}) vs @${loserUser?.username || "Player"}! Payout: \u09F3${winnerPayout.toLocaleString()} (Pot: \u09F3${totalPot.toLocaleString()}, House 5%: \u09F3${companyProfit.toLocaleString()})`
       });
       const stats = ensureUserStats(winnerUser);
       stats.totalHandsPlayed += 1;
@@ -1468,13 +1520,13 @@ app.post("/api/chat/send", (req, res) => {
   });
   res.json({ success: true, message: msg });
 });
-app.get("/api/tables", (_req, res) => {
+app.get("/api/tables", (req, res) => {
   const result = Object.values(tables).map((t) => ({
     config: t.config,
     currentRound: t.currentRound,
     recentWinners: t.roadmap.slice(0, 10).map((r) => r.result)
   }));
-  res.json(result);
+  sendJsonWithETag(req, res, result, 1);
 });
 app.get("/api/tables/:slug/roadmap", (req, res) => {
   const { slug } = req.params;
@@ -2584,13 +2636,18 @@ var checkExpiredRooms = () => {
         room.status = "cancelled";
         const creator = mockUsers[room.creatorId];
         if (creator) {
-          creator.balance += room.amount;
+          const isDemo = room.balanceType === "demo";
+          if (isDemo) {
+            creator.demoBalance += room.amount;
+          } else {
+            creator.balance += room.amount;
+          }
           addTransactionToUser(creator, {
             id: `tx_p2p_expire_${Date.now()}_${Math.random().toString(36).substr(2, 4)}`,
             type: "deposit",
             amount: room.amount,
             timestamp: (/* @__PURE__ */ new Date()).toISOString(),
-            description: `Refund P2P Challenge: Room expired after 5 minutes without opponent (Stake: \u09F3${room.amount.toLocaleString()})`
+            description: `Refund P2P Challenge (${isDemo ? "Demo" : "Real"}): Room expired after 5 minutes without opponent (Stake: \u09F3${room.amount.toLocaleString()})`
           });
         }
         activeRooms.splice(i, 1);
@@ -2681,18 +2738,25 @@ memorySweepInterval.unref();
 app.get("/api/rooms", (req, res) => {
   checkExpiredRooms();
   const reqUserId = req.query.userId || req.headers["x-user-id"];
-  const sanitized = activeRooms.map((room) => {
+  const user = reqUserId ? mockUsers[reqUserId] : null;
+  const userBalanceType = user?.balanceType || "real";
+  const sanitized = activeRooms.filter((room) => {
+    if (user) {
+      return room.balanceType === userBalanceType || room.creatorId === reqUserId;
+    }
+    return room.balanceType === "real";
+  }).map((room) => {
     if (reqUserId && room.creatorId === reqUserId) {
       return room;
     }
     const { password, ...rest } = room;
     return {
       ...rest,
-      hasPassword: !!password,
+      hasPassword: Boolean(password),
       password: password ? "\u{1F512} Protected" : void 0
     };
   });
-  res.json(sanitized);
+  sendJsonWithETag(req, res, sanitized, 1);
 });
 app.post("/api/rooms/create", requireUser, (req, res) => {
   const userId = req.userId;
@@ -2756,16 +2820,22 @@ app.post("/api/rooms/create", requireUser, (req, res) => {
   if (numOdds < 1.05 || numOdds > 50) {
     return res.status(400).json({ error: "Invalid challenge odds ratio. Odds multiplier must be between 1.05x and 50.0x." });
   }
-  if (user.balance < numAmount) {
-    return res.status(400).json({ error: `\u{1F6AB} \u0985\u09AA\u09B0\u09CD\u09AF\u09BE\u09AA\u09CD\u09A4 \u09AC\u09CD\u09AF\u09BE\u09B2\u09C7\u09A8\u09CD\u09B8! \u09B0\u09C1\u09AE \u09A4\u09C8\u09B0\u09BF \u0995\u09B0\u09A4\u09C7 \u0986\u09AA\u09A8\u09BE\u09B0 \u09AE\u09C2\u09B2 \u09AC\u09CD\u09AF\u09BE\u09B2\u09C7\u09A8\u09CD\u09B8\u09C7 \u0985\u09A8\u09CD\u09A4\u09A4 \u09F3${numAmount.toLocaleString()} \u099A\u09BF\u09AA\u09B8 \u09A5\u09BE\u0995\u09A4\u09C7 \u09B9\u09AC\u09C7\u0964 \u09A6\u09DF\u09BE \u0995\u09B0\u09C7 Add Fund \u09AC\u09BE \u09A1\u09BF\u09AA\u09CB\u099C\u09BF\u099F \u0995\u09B0\u09C1\u09A8\u0964` });
+  const isDemo = user.balanceType === "demo";
+  const userBalance = isDemo ? user.demoBalance : user.balance;
+  if (userBalance < numAmount) {
+    return res.status(400).json({ error: `\u{1F6AB} \u0985\u09AA\u09B0\u09CD\u09AF\u09BE\u09AA\u09CD\u09A4 \u09AC\u09CD\u09AF\u09BE\u09B2\u09C7\u09A8\u09CD\u09B8! \u09B0\u09C1\u09AE \u09A4\u09C8\u09B0\u09BF \u0995\u09B0\u09A4\u09C7 \u0986\u09AA\u09A8\u09BE\u09B0 ${isDemo ? "\u09A1\u09C7\u09AE\u09CB" : "\u09AE\u09C2\u09B2"} \u09AC\u09CD\u09AF\u09BE\u09B2\u09C7\u09A8\u09CD\u09B8\u09C7 \u0985\u09A8\u09CD\u09A4\u09A4 \u09F3${numAmount.toLocaleString()} \u099A\u09BF\u09AA\u09B8 \u09A5\u09BE\u0995\u09A4\u09C7 \u09B9\u09AC\u09C7\u0964 \u09A6\u09DF\u09BE \u0995\u09B0\u09C7 ${isDemo ? "\u09AC\u09CD\u09AF\u09BE\u09B2\u09C7\u09A8\u09CD\u09B8 \u099F\u0997\u09B2 \u0995\u09B0\u09C1\u09A8" : "Add Fund \u09AC\u09BE \u09A1\u09BF\u09AA\u09CB\u099C\u09BF\u099F \u0995\u09B0\u09C1\u09A8"}\u0964` });
   }
-  user.balance -= numAmount;
+  if (isDemo) {
+    user.demoBalance -= numAmount;
+  } else {
+    user.balance -= numAmount;
+  }
   addTransactionToUser(user, {
     id: `tx_p2p_create_${Date.now()}`,
     type: "withdraw",
     amount: numAmount,
     timestamp: (/* @__PURE__ */ new Date()).toISOString(),
-    description: `Created P2P Challenge: Risked \u09F3${numAmount.toLocaleString()} (Min: \u09F3${parsedMinStake.toLocaleString()}, Max: \u09F3${parsedMaxStake.toLocaleString()})`
+    description: `Created P2P Challenge (${isDemo ? "Demo" : "Real"}): Risked \u09F3${numAmount.toLocaleString()} (Min: \u09F3${parsedMinStake.toLocaleString()}, Max: \u09F3${parsedMaxStake.toLocaleString()})`
   });
   const selectedChoice = choice === "tiger" || choice === "dragon" ? choice : "dragon";
   const tags = [];
@@ -2800,7 +2870,8 @@ app.post("/api/rooms/create", requireUser, (req, res) => {
     autoCloseSecondsRemaining: 300,
     capacityPercent: 50,
     recentBetActionsCount: isSingleRoundQuickChallenge ? 9 : 3,
-    isSingleRoundQuickChallenge: isSingleRoundQuickChallenge === true
+    isSingleRoundQuickChallenge: isSingleRoundQuickChallenge === true,
+    balanceType: user.balanceType
   };
   activeRooms.unshift(newRoom);
   p2pRoomsHistory.unshift(newRoom);
@@ -2875,10 +2946,16 @@ app.post("/api/rooms/accept", requireUser, (req, res) => {
     requiredAcceptorStake = Math.round(customStakeNum);
   }
   const acceptor = mockUsers[userId];
-  if (acceptor.balance < requiredAcceptorStake) {
-    return res.status(400).json({ error: `Insufficient balance to accept duel. Required stake: \u09F3${requiredAcceptorStake.toLocaleString()} chips.` });
+  const isDemo = room.balanceType === "demo";
+  const acceptorBalance = isDemo ? acceptor.demoBalance : acceptor.balance;
+  if (acceptorBalance < requiredAcceptorStake) {
+    return res.status(400).json({ error: `\u{1F6AB} \u0985\u09AA\u09B0\u09CD\u09AF\u09BE\u09AA\u09CD\u09A4 ${isDemo ? "\u09A1\u09C7\u09AE\u09CB" : "\u09AE\u09C2\u09B2"} \u09AC\u09CD\u09AF\u09BE\u09B2\u09C7\u09A8\u09CD\u09B8! \u09A1\u09C1\u09AF\u09BC\u09C7\u09B2 \u09B0\u09BF\u0995\u09CB\u09AF\u09BC\u09C7\u09B8\u09CD\u099F \u099C\u09DF\u09C7\u09A8 \u0995\u09B0\u09A4\u09C7 \u0986\u09AA\u09A8\u09BE\u09B0 \u09AC\u09CD\u09AF\u09BE\u09B2\u09C7\u09A8\u09CD\u09B8\u09C7 \u0985\u09A8\u09CD\u09A4\u09A4 \u09F3${requiredAcceptorStake.toLocaleString()} \u099A\u09BF\u09AA\u09B8 \u09A5\u09BE\u0995\u09A4\u09C7 \u09B9\u09AC\u09C7\u0964` });
   }
-  acceptor.balance -= requiredAcceptorStake;
+  if (isDemo) {
+    acceptor.demoBalance -= requiredAcceptorStake;
+  } else {
+    acceptor.balance -= requiredAcceptorStake;
+  }
   room.acceptorId = userId;
   room.acceptorName = username || acceptor.username;
   room.status = "matched";
@@ -2903,24 +2980,32 @@ app.post("/api/rooms/accept", requireUser, (req, res) => {
     } else {
       const creatorWon = room.winner === "dragon" && room.choice === "dragon" || room.winner === "tiger" && room.choice === "tiger";
       if (creatorWon && creatorUser2) {
-        creatorUser2.balance += winnerPayout;
+        if (isDemo) {
+          creatorUser2.demoBalance += winnerPayout;
+        } else {
+          creatorUser2.balance += winnerPayout;
+        }
         creatorUser2.totalWon += winnerPayout - room.amount;
         addTransactionToUser(creatorUser2, {
           id: `tx_quick_win_${Date.now()}`,
           type: "win",
           amount: winnerPayout,
           timestamp: (/* @__PURE__ */ new Date()).toISOString(),
-          description: `Won 1v1 Quick Challenge Pot: +\u09F3${winnerPayout.toLocaleString()} (5% House Rake: \u09F3${companyFee.toLocaleString()})`
+          description: `Won 1v1 Quick Challenge Pot (${isDemo ? "Demo" : "Real"}): +\u09F3${winnerPayout.toLocaleString()} (5% House Rake: \u09F3${companyFee.toLocaleString()})`
         });
       } else {
-        acceptor.balance += winnerPayout;
+        if (isDemo) {
+          acceptor.demoBalance += winnerPayout;
+        } else {
+          acceptor.balance += winnerPayout;
+        }
         acceptor.totalWon += winnerPayout - requiredAcceptorStake;
         addTransactionToUser(acceptor, {
           id: `tx_quick_win_${Date.now()}`,
           type: "win",
           amount: winnerPayout,
           timestamp: (/* @__PURE__ */ new Date()).toISOString(),
-          description: `Won 1v1 Quick Challenge Pot: +\u09F3${winnerPayout.toLocaleString()} (5% House Rake: \u09F3${companyFee.toLocaleString()})`
+          description: `Won 1v1 Quick Challenge Pot (${isDemo ? "Demo" : "Real"}): +\u09F3${winnerPayout.toLocaleString()} (5% House Rake: \u09F3${companyFee.toLocaleString()})`
         });
       }
       room.status = "completed";
@@ -2957,6 +3042,7 @@ app.post("/api/rooms/accept", requireUser, (req, res) => {
     acceptorWinRate,
     currentPot: room.amount + requiredAcceptorStake,
     currentRaise: Math.max(room.amount, requiredAcceptorStake),
+    balanceType: room.balanceType || "real",
     bettingRound: 1,
     turnUser: "DRAGON",
     secondsRemaining: 60,
@@ -3081,10 +3167,16 @@ app.post("/api/rooms/duel/:roomId/action", requireUser, (req, res) => {
       return res.status(400).json({ error: "Cannot check. Bets must be equal." });
     }
   }
-  if (user.balance < additionalCost) {
-    return res.status(400).json({ error: `Insufficient balance. Action cost is \u09F3${additionalCost.toLocaleString()} but you have \u09F3${user.balance.toLocaleString()}.` });
+  const isDemo = duel.balanceType === "demo";
+  const userBalance = isDemo ? user.demoBalance : user.balance;
+  if (userBalance < additionalCost) {
+    return res.status(400).json({ error: `\u{1F6AB} \u0985\u09AA\u09B0\u09CD\u09AF\u09BE\u09AA\u09CD\u09A4 ${isDemo ? "\u09A1\u09C7\u09AE\u09CB" : "\u09AE\u09C2\u09B2"} \u09AC\u09CD\u09AF\u09BE\u09B2\u09C7\u09A8\u09CD\u09B8! \u0985\u09CD\u09AF\u09BE\u0995\u09B6\u09A8 \u09B8\u09AE\u09CD\u09AA\u09A8\u09CD\u09A8 \u0995\u09B0\u09A4\u09C7 \u0986\u09AA\u09A8\u09BE\u09B0 \u09AC\u09CD\u09AF\u09BE\u09B2\u09C7\u09A8\u09CD\u09B8\u09C7 \u0985\u09A8\u09CD\u09A4\u09A4 \u09F3${additionalCost.toLocaleString()} \u099Aips \u09A5\u09BE\u0995\u09A4\u09C7 \u09B9\u09AC\u09C7\u0964` });
   }
-  user.balance -= additionalCost;
+  if (isDemo) {
+    user.demoBalance -= additionalCost;
+  } else {
+    user.balance -= additionalCost;
+  }
   const updatedUserBet = userBet + additionalCost;
   if (isCreator) {
     duel.creatorBet = updatedUserBet;
@@ -3138,13 +3230,18 @@ app.post("/api/rooms/cancel", requireUser, (req, res) => {
   activeRooms.splice(roomIndex, 1);
   const user = mockUsers[userId];
   if (user) {
-    user.balance += room.amount;
+    const isDemo = room.balanceType === "demo";
+    if (isDemo) {
+      user.demoBalance += room.amount;
+    } else {
+      user.balance += room.amount;
+    }
     addTransactionToUser(user, {
       id: `tx_room_cancel_${Date.now()}`,
       type: "refund",
       amount: room.amount,
       timestamp: (/* @__PURE__ */ new Date()).toISOString(),
-      description: `P2P Challenge Cancelled: \u09F3${room.amount.toLocaleString()} 100% refunded to wallet`
+      description: `P2P Challenge Cancelled (${isDemo ? "Demo" : "Real"}): \u09F3${room.amount.toLocaleString()} 100% refunded to wallet`
     });
   }
   broadcast({ type: "ROOM_CANCELLED", roomId });
@@ -3179,9 +3276,9 @@ app.get("/api/leaderboard", (req, res) => {
       equippedTitle: u.cosmetics?.equippedTitle
     };
   }).sort((a, b) => b.profit - a.profit);
-  res.json(list);
+  sendJsonWithETag(req, res, list, 10);
 });
-app.get(["/api/site/liquidity", "/api/transparency"], (_req, res) => {
+app.get(["/api/site/liquidity", "/api/transparency"], (req, res) => {
   let totalRealBalance = 0;
   let totalDemoBalance = 0;
   let totalLockedEscrow = 0;
@@ -3273,9 +3370,9 @@ app.get(["/api/site/liquidity", "/api/transparency"], (_req, res) => {
     users: userList,
     timestamp: (/* @__PURE__ */ new Date()).toISOString()
   };
-  res.json(responseData);
+  sendJsonWithETag(req, res, responseData, 5);
 });
-app.get("/api/p2p/capacity-trends", (_req, res) => {
+app.get("/api/p2p/capacity-trends", (req, res) => {
   const now = /* @__PURE__ */ new Date();
   const points = [];
   const currentConnected = wss.clients.size;
@@ -3291,7 +3388,7 @@ app.get("/api/p2p/capacity-trends", (_req, res) => {
       activeRooms: currentRooms
     });
   }
-  res.json({ success: true, points });
+  sendJsonWithETag(req, res, { success: true, points }, 15);
 });
 app.post("/api/reports/submit", (req, res) => {
   const { reporterUserId, reporterUsername, reportedUserId, reportedUsername, reason, details } = req.body;
@@ -3982,10 +4079,11 @@ app.post("/api/ai-dealer", async (req, res) => {
         commentary: `Cards shuffled on the ${safeSlug.toUpperCase()} arena. Fortune favors the daring. Last win went to ${safeWinner}!`
       });
     }
-    const response = await ai.getGenerativeModel({
-      model: "gemini-1.5-flash"
-    }).generateContent(`You are an elite, charismatic Asian casino dealer for Dragon Tiger P2P. Provide one punchy, exciting casino sentence for players placing bets. Last round winner: ${safeWinner}. Keep it high energy.`);
-    res.json({ commentary: response.response.text() });
+    const response = await ai.models.generateContent({
+      model: "gemini-3.8-flash",
+      contents: `You are an elite, charismatic Asian casino dealer for Dragon Tiger P2P. Provide one punchy, exciting casino sentence for players placing bets. Last round winner: ${safeWinner}. Keep it high energy.`
+    });
+    res.json({ commentary: response.text });
   } catch {
     res.json({
       commentary: "Cards are in play! Will the Dragon roar or will the Tiger strike? Place your bets!"
@@ -4003,16 +4101,15 @@ app.use((err, req, res, next) => {
   next(err);
 });
 async function startServer() {
-  const hasDist = fs.existsSync(path.join(process.cwd(), "dist"));
-  const env = process.env.NODE_ENV || (hasDist ? "production" : "development");
-  console.log(`[BOOT] Detected Environment: ${env} (NODE_ENV: ${process.env.NODE_ENV || "unset"}, hasDist: ${hasDist})`);
+  const isProduction = process.env.NODE_ENV === "production";
+  console.log(`[BOOT] Detected Environment: ${isProduction ? "production" : "development"} (NODE_ENV: ${process.env.NODE_ENV || "unset"})`);
   console.log(`[BOOT] Working Directory: ${process.cwd()}`);
-  if (env !== "production" && !hasDist) {
+  if (!isProduction) {
     console.log("[BOOT] Starting with Vite Development Middleware...");
     const vite = await createViteServer({
       server: {
         middlewareMode: true,
-        hmr: process.env.DISABLE_HMR === "true" ? false : void 0
+        hmr: false
       },
       appType: "spa"
     });
@@ -4033,14 +4130,19 @@ async function startServer() {
     }
     console.log(`[BOOT] Serving production assets from: ${distPath}`);
     app.use(express.static(distPath, {
-      maxAge: "7d",
+      maxAge: 0,
       etag: true,
       lastModified: true,
       setHeaders: (res, filePath) => {
-        if (filePath.endsWith(".html")) {
-          res.setHeader("Cache-Control", "public, max-age=0, must-revalidate");
+        const lower = filePath.toLowerCase();
+        if (lower.endsWith(".html") || lower.endsWith("sw.js") || lower.endsWith("manifest.json") || lower.endsWith("manifest.webmanifest") || lower.endsWith("version.json") || lower.includes("workbox-")) {
+          res.setHeader("Cache-Control", "no-store, no-cache, must-revalidate, proxy-revalidate, max-age=0");
+          res.setHeader("Pragma", "no-cache");
+          res.setHeader("Expires", "0");
         } else if (filePath.includes("/assets/")) {
           res.setHeader("Cache-Control", "public, max-age=31536000, immutable");
+        } else {
+          res.setHeader("Cache-Control", "public, max-age=3600, must-revalidate");
         }
       }
     }));
@@ -4058,8 +4160,8 @@ async function startServer() {
       }
     });
   }
-  server.listen(PORT, "0.0.0.0", () => {
-    console.log(`Dragon Tiger P2P Server running on http://localhost:${PORT}`);
+  server.listen(PORT, HOST, () => {
+    console.log(`Dragon Tiger P2P Server running on http://${HOST}:${PORT}`);
   });
 }
 process.on("unhandledRejection", (reason, promise) => {

@@ -1,0 +1,32 @@
+version: "3.8"
+
+services:
+  dragon-tiger:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: dragon-tiger-p2p
+    restart: always
+    ports:
+      - "${PORT:-3000}:3000"
+    environment:
+      - NODE_ENV=production
+      - PORT=3000
+      - HOST=0.0.0.0
+      - DATA_DIR=/data
+      - PERSISTENT_DATA_DIR=/data
+      - GEMINI_API_KEY=${GEMINI_API_KEY:-}
+    volumes:
+      # Persistent storage volume for database: all wallets, bets, credentials, cashier transactions
+      - dragon_tiger_data:/data
+    healthcheck:
+      test: ["CMD", "curl", "-fs", "http://localhost:3000/api/health"]
+      interval: 20s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
+
+volumes:
+  dragon_tiger_data:
+    name: dragon_tiger_persistent_db
+    driver: local

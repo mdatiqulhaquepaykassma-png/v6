@@ -375,23 +375,34 @@ const userCredentials: Record<string, UserCredential> = {};
 
 const mockUsers: Record<string, UserWallet> = {};
 
-// Multi-tier Persistent Storage Engine for Cloud Hosting (Render / Docker / VPS / Local)
+// Multi-tier Persistent Storage Engine for Cloud Hosting (Dokploy / Docker / Render / VPS / Local)
 function getPersistenceDir(): string {
   const envDir = process.env.PERSISTENT_DATA_DIR || process.env.DATA_DIR;
-  if (envDir && fs.existsSync(envDir)) {
-    return envDir;
+  if (envDir) {
+    try {
+      if (!fs.existsSync(envDir)) {
+        fs.mkdirSync(envDir, { recursive: true });
+      }
+      console.log(`[STORAGE] Using configured PERSISTENT_DATA_DIR: ${envDir}`);
+      return envDir;
+    } catch (e) {
+      console.warn(`[STORAGE] Could not initialize PERSISTENT_DATA_DIR (${envDir}):`, e);
+    }
   }
-  // Standard Render / Docker Volume Mounts
-  if (fs.existsSync("/var/data")) {
-    return "/var/data";
-  }
-  if (fs.existsSync("/data")) {
-    return "/data";
+  // Standard Dokploy / Docker / Render Volume Mounts
+  for (const volPath of ["/data", "/var/data"]) {
+    try {
+      if (fs.existsSync(volPath)) {
+        console.log(`[STORAGE] Detected Docker/Dokploy persistent volume at: ${volPath}`);
+        return volPath;
+      }
+    } catch {}
   }
   const localDir = path.resolve(process.cwd(), ".data");
   if (!fs.existsSync(localDir)) {
     try { fs.mkdirSync(localDir, { recursive: true }); } catch {}
   }
+  console.log(`[STORAGE] Using local directory: ${localDir}`);
   return localDir;
 }
 
