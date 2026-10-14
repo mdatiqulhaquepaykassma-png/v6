@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback, useRef } from "react";
+import React, { useState, useEffect, useCallback, useRef, useMemo } from "react";
 import { UserWallet, TableRound, RoadmapItem, HighLoadTelemetry } from "./types";
 import { LoginScreen } from "./components/LoginScreen";
 import { Navbar } from "./components/Navbar";
@@ -25,8 +25,8 @@ import { MobileBottomNav } from "./components/MobileBottomNav";
 import { CurrencySelectorModal } from "./components/CurrencySelectorModal";
 import { TableEntryTransition } from "./components/TableEntryTransition";
 import { NetworkStatusBadge } from "./components/NetworkStatusBadge";
-import { PWAInstallBanner } from "./components/PWAInstallBanner";
 import { useInstallationSync } from "./utils/useInstallationSync";
+import { useSmartInterval } from "./utils/smartPolling";
 import { useWakeLock } from "./utils/useWakeLock";
 import { useDrag } from "@use-gesture/react";
 import { motion, AnimatePresence } from "framer-motion";
@@ -87,8 +87,6 @@ export default function App() {
             } else if (runningVersion !== data.version) {
               console.log("[AUTO-UPDATE] Deploy mismatch: Server =", data.version, "| Client =", runningVersion);
               setLatestServerVersion(data.version);
-              // Auto-purge old caches and reload seamlessly
-              await purgeCachesAndReload(data.version);
             }
           }
         }
@@ -96,7 +94,7 @@ export default function App() {
     };
 
     checkVersion();
-    const interval = setInterval(checkVersion, 20000);
+    const interval = setInterval(checkVersion, 60000);
     const handleVisibility = () => {
       if (document.visibilityState === 'visible') {
         checkVersion();
@@ -191,6 +189,39 @@ export default function App() {
     checkSession();
   }, []);
 
+  const [telemetry, setTelemetry] = useState<HighLoadTelemetry | null>(null);
+  const telemetryDebounceTimerRef = useRef<NodeJS.Timeout | null>(null);
+  const latestTelemetryRef = useRef<HighLoadTelemetry | null>(null);
+
+  // Debounced telemetry updater to prevent high-frequency re-renders of Navbar and main view
+  const updateTelemetryDebounced = useCallback((newData: HighLoadTelemetry, delay = 500) => {
+    if (!newData) return;
+    latestTelemetryRef.current = newData;
+
+    if (telemetryDebounceTimerRef.current) {
+      clearTimeout(telemetryDebounceTimerRef.current);
+    }
+
+    telemetryDebounceTimerRef.current = setTimeout(() => {
+      setTelemetry((prev) => {
+        const next = latestTelemetryRef.current;
+        if (!next) return prev;
+        // Strict equality check on active player counts and table player counts to avoid unneeded state churn
+        if (
+          prev &&
+          prev.totalActivePlayers === next.totalActivePlayers &&
+          prev.tableActivePlayers?.express === next.tableActivePlayers?.express &&
+          prev.tableActivePlayers?.classic === next.tableActivePlayers?.classic &&
+          prev.tableActivePlayers?.vip === next.tableActivePlayers?.vip
+        ) {
+          return prev;
+        }
+        return next;
+      });
+      telemetryDebounceTimerRef.current = null;
+    }, delay);
+  }, []);
+
   useEffect(() => {
     if (!user) return;
     const protocol = window.location.protocol === "https:" ? "wss:" : "ws:";
@@ -215,6 +246,11 @@ export default function App() {
               setUser(null);
               localStorage.removeItem("player_session_id");
             }
+            if (data.type === "TELEMETRY_UPDATE" || data.type === "SYSTEM_STATS") {
+              if (data.telemetry) {
+                updateTelemetryDebounced(data.telemetry, 500);
+              }
+            }
           } catch {}
         };
         ws.onclose = (event) => {
@@ -230,14 +266,14 @@ export default function App() {
       clearTimeout(reconnectTimeout);
       if (ws) ws.close();
     };
-  }, [user]);
+  }, [user, updateTelemetryDebounced]);
   const [activeTab, setActiveTab] = useState<"game" | "p2p" | "leaderboard">("game");
   const [tabDirection, setTabDirection] = useState<number>(1);
   const [selectedTable, setSelectedTable] = useState<"express" | "classic" | "vip">("classic");
   const [soundEnabled, setSoundEnabled] = useState<boolean>(true);
   const [voiceEnabled, setVoiceEnabled] = useState<boolean>(true);
   const [lang, setLang] = useState<"bn" | "en">("bn");
-  const [telemetry, setTelemetry] = useState<HighLoadTelemetry | null>(null);
+
   const [selectedCurrency, setSelectedCurrency] = useState<string>(getStoredCurrencyCode());
   const [isCurrencySelectorOpen, setIsCurrencySelectorOpen] = useState<boolean>(false);
 
@@ -274,12 +310,8 @@ export default function App() {
     return latencyRef.current;
   }, []);
 
-  // Periodic background ping check every 15 seconds
-  useEffect(() => {
-    measurePing();
-    const interval = setInterval(measurePing, 15000);
-    return () => clearInterval(interval);
-  }, [measurePing]);
+  // Periodic background ping check every 30 seconds when visible
+  useSmartInterval(measurePing, 30000, { idleMultiplier: 3 });
 
   // Cinematic Door Opening / Table Entry Transition State
   const [tableTransitionOpen, setTableTransitionOpen] = useState<boolean>(false);
@@ -335,23 +367,33 @@ export default function App() {
     };
   }, []);
 
-  // Telemetry periodic fetch for high-load state
-  useEffect(() => {
-    const fetchTelemetry = async () => {
-      try {
-        const res = await fetch("/api/system/telemetry");
-        if (res.ok) {
-          const data = await res.json();
-          setTelemetry(data);
-        }
-      } catch {
-        // Fallback default high-load values
+  // Telemetry periodic fetch for high-load state with visibility awareness & debounced dispatch
+  const fetchTelemetry = useCallback(async () => {
+    try {
+      const res = await fetch("/api/system/telemetry");
+      if (res.ok) {
+        const data = await res.json();
+        updateTelemetryDebounced(data, 500);
       }
-    };
-    fetchTelemetry();
-    const interval = setInterval(fetchTelemetry, 6000);
-    return () => clearInterval(interval);
-  }, []);
+    } catch {
+      // Fallback default high-load values
+    }
+  }, [updateTelemetryDebounced]);
+
+  useSmartInterval(fetchTelemetry, 10000, { idleMultiplier: 3 });
+
+  // Memoized telemetry selectors to prevent unnecessary re-renders of Navbar, GameTable, and Main View
+  const memoizedTelemetryPlayerCount = useMemo(() => {
+    return telemetry?.totalActivePlayers ?? 1;
+  }, [telemetry?.totalActivePlayers]);
+
+  const memoizedTablePlayerCounts = useMemo(() => {
+    return telemetry?.tableActivePlayers;
+  }, [
+    telemetry?.tableActivePlayers?.express,
+    telemetry?.tableActivePlayers?.classic,
+    telemetry?.tableActivePlayers?.vip,
+  ]);
 
   // Listen for custom currency changes across the app
   useEffect(() => {
@@ -900,8 +942,8 @@ export default function App() {
           onToggleBalanceType={handleToggleBalanceType}
           lang={lang}
           onToggleLang={() => setLang((l) => (l === "bn" ? "en" : "bn"))}
-          telemetryPlayerCount={telemetry?.totalActivePlayers ?? 1}
-          tablePlayerCounts={telemetry?.tableActivePlayers}
+          telemetryPlayerCount={memoizedTelemetryPlayerCount}
+          tablePlayerCounts={memoizedTablePlayerCounts}
           isLandscape={isLandscape}
         />
 
@@ -1106,7 +1148,7 @@ export default function App() {
         <ActiveOnlineUsersModal
           isOpen={isOnlineUsersOpen}
           onClose={() => setIsOnlineUsersOpen(false)}
-          onlineCount={telemetry?.totalActivePlayers ?? 0}
+          onlineCount={memoizedTelemetryPlayerCount}
           lang={lang}
         />
       )}
@@ -1231,9 +1273,6 @@ export default function App() {
           lang={lang}
         />
       )}
-
-      {/* Dynamic PWA Uninstalled / Missing Re-Install Floating Banner */}
-      <PWAInstallBanner lang={lang} />
 
       {/* Non-intrusive New Version Available Toast */}
       <AnimatePresence>

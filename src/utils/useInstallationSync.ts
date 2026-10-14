@@ -102,26 +102,32 @@ export function useInstallationSync(): InstallationSyncState {
     return false;
   }, []);
 
-  // Direct app opener
+  // Direct app opener with clean Chrome launch & chain navigation support
   const openApp = useCallback(async () => {
     if (typeof window === 'undefined') return;
     if (checkIsStandalone()) return;
 
     const host = window.location.host;
     const pathname = window.location.pathname || '/';
+    const origin = window.location.origin;
     const scheme = window.location.protocol.replace(':', '') || 'https';
+    const fallbackUrl = encodeURIComponent(`${origin}${pathname}`);
     const ua = window.navigator.userAgent.toLowerCase();
     const isAndroidDevice = /android/.test(ua);
 
     if (isAndroidDevice) {
       try {
-        window.location.href = `intent://${host}${pathname}#Intent;scheme=${scheme};action=android.intent.action.VIEW;end;`;
+        // Safe Android Intent with browser fallback URL to allow Chrome to open smoothly
+        const intentUri = `intent://${host}${pathname}#Intent;scheme=${scheme};package=com.android.chrome;S.browser_fallback_url=${fallbackUrl};end;`;
+        window.location.assign(intentUri);
         return;
-      } catch {}
+      } catch (err) {
+        console.debug('Intent navigation fallback:', err);
+      }
     }
 
     try {
-      window.location.href = window.location.origin + pathname;
+      window.location.assign(origin + pathname);
     } catch {
       window.location.href = '/';
     }

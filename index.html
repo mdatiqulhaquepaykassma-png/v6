@@ -32,45 +32,6 @@
         try { localStorage.setItem('dt_pwa_installed', 'true'); } catch(err) {}
         try { window.dispatchEvent(new CustomEvent('dt_pwa_status_change', { detail: { installed: true } })); } catch(err) {}
       });
-
-      // Pre-boot Build Timestamp & SW Cache Verifier (HEAD & Metadata check)
-      (function() {
-        try {
-          var LOCAL_KEY = 'dt_last_build_hash';
-          var storedHash = localStorage.getItem(LOCAL_KEY);
-          fetch('/sw-metadata.json?_t=' + Date.now(), {
-            method: 'GET',
-            cache: 'no-store',
-            headers: { 'Cache-Control': 'no-cache, no-store, must-revalidate', 'Pragma': 'no-cache' }
-          }).then(function(res) {
-            if (res && res.ok) return res.json();
-            return null;
-          }).then(function(data) {
-            if (data && (data.build_hash || data.build_timestamp)) {
-              var currentHash = String(data.build_hash || data.build_timestamp);
-              if (storedHash && storedHash !== currentHash) {
-                console.warn('[BOOT-SYNC] Build hash mismatch (' + storedHash + ' -> ' + currentHash + '). Purging SW caches & hard reloading...');
-                if ('serviceWorker' in navigator) {
-                  navigator.serviceWorker.getRegistrations().then(function(regs) {
-                    for (var i = 0; i < regs.length; i++) regs[i].unregister();
-                  });
-                }
-                if ('caches' in window) {
-                  caches.keys().then(function(names) {
-                    for (var j = 0; j < names.length; j++) caches.delete(names[j]);
-                  });
-                }
-                localStorage.setItem(LOCAL_KEY, currentHash);
-                localStorage.setItem('dt_app_running_version', currentHash);
-                window.location.reload(true);
-              } else if (!storedHash) {
-                localStorage.setItem(LOCAL_KEY, currentHash);
-                localStorage.setItem('dt_app_running_version', currentHash);
-              }
-            }
-          }).catch(function() {});
-        } catch(e) {}
-      })();
     </script>
 
     <script type="module" src="/src/main.tsx"></script>
@@ -173,10 +134,10 @@
         });
       })();
     </script>
-    <title>APEX CASINO: Dragon Tiger P2P</title>
-    <meta name="description" content="High-stakes Dragon Tiger P2P arena with real-time multiplayer rooms, transparency charter, and secure wallet integration." />
-    <meta property="og:title" content="APEX CASINO: Dragon Tiger P2P" />
-    <meta property="og:description" content="High-stakes Dragon Tiger P2P arena with real-time multiplayer rooms, transparency charter, and secure wallet integration." />
+    <title>v10 Dragon Tiger P2P</title>
+    <meta name="description" content="High-stakes Dragon Tiger P2P betting game with real-time multiplayer rooms, live leaderboard, and secure wallet integration." />
+    <meta property="og:title" content="v10 Dragon Tiger P2P" />
+    <meta property="og:description" content="High-stakes Dragon Tiger P2P betting game with real-time multiplayer rooms, live leaderboard, and secure wallet integration." />
     <meta property="og:type" content="website" />
     <meta name="twitter:card" content="summary_large_image" />
     <style>

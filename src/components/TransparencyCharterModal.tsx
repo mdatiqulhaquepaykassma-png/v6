@@ -1,4 +1,5 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useCallback } from "react";
+import { useSmartInterval } from "../utils/smartPolling";
 import {
   X,
   ShieldCheck,
@@ -72,14 +73,7 @@ export const TransparencyCharterModal: React.FC<TransparencyCharterModalProps> =
       .catch(() => {});
   };
 
-  useEffect(() => {
-    if (!isOpen) return;
-    fetchSiteLiquidityData();
-    const interval = setInterval(fetchSiteLiquidityData, 3000);
-    return () => clearInterval(interval);
-  }, [isOpen]);
-
-  const fetchLiveLedger = () => {
+  const fetchLiveLedger = useCallback(() => {
     fetch("/api/transparency/transactions?limit=50")
       .then((r) => r.json())
       .then((d) => {
@@ -87,37 +81,9 @@ export const TransparencyCharterModal: React.FC<TransparencyCharterModalProps> =
       })
       .catch(() => {})
       .finally(() => setLoadingLedger(false));
-  };
+  }, []);
 
-  useEffect(() => {
-    if (!isOpen) return;
-
-    if (activeTab === "liveLedger") {
-      setLoadingLedger(true);
-      fetchLiveLedger();
-      const interval = setInterval(fetchLiveLedger, 2000);
-      return () => clearInterval(interval);
-    } else if (activeTab === "publicUsers") {
-      fetchPublicUsers();
-      const interval = setInterval(fetchPublicUsers, 2500);
-      return () => clearInterval(interval);
-    }
-  }, [activeTab, isOpen, userSearchQuery]);
-
-  useEffect(() => {
-    if (!selectedInspectUser?.userId || !isOpen) return;
-    const interval = setInterval(() => {
-      fetch(`/api/transparency/users/${selectedInspectUser.userId}`)
-        .then((r) => r.json())
-        .then((d) => {
-          if (d.user) setSelectedInspectUser(d.user);
-        })
-        .catch(() => {});
-    }, 3000);
-    return () => clearInterval(interval);
-  }, [selectedInspectUser?.userId, isOpen]);
-
-  const fetchPublicUsers = () => {
+  const fetchPublicUsers = useCallback(() => {
     setLoadingUsers(true);
     fetch(`/api/transparency/users?search=${encodeURIComponent(userSearchQuery)}`)
       .then((r) => r.json())
@@ -126,7 +92,38 @@ export const TransparencyCharterModal: React.FC<TransparencyCharterModalProps> =
       })
       .catch(() => {})
       .finally(() => setLoadingUsers(false));
-  };
+  }, [userSearchQuery]);
+
+  const fetchSelectedUser = useCallback(() => {
+    if (!selectedInspectUser?.userId) return;
+    fetch(`/api/transparency/users/${selectedInspectUser.userId}`)
+      .then((r) => r.json())
+      .then((d) => {
+        if (d.user) setSelectedInspectUser(d.user);
+      })
+      .catch(() => {});
+  }, [selectedInspectUser?.userId]);
+
+  useEffect(() => {
+    if (!isOpen) return;
+    fetchSiteLiquidityData();
+  }, [isOpen]);
+
+  useEffect(() => {
+    if (!isOpen) return;
+    if (activeTab === "liveLedger") {
+      setLoadingLedger(true);
+      fetchLiveLedger();
+    } else if (activeTab === "publicUsers") {
+      fetchPublicUsers();
+    }
+  }, [activeTab, isOpen, fetchLiveLedger, fetchPublicUsers]);
+
+  // Relaxed bandwidth-efficient polling while modal is open
+  useSmartInterval(fetchSiteLiquidityData, 10000, { enabled: isOpen });
+  useSmartInterval(fetchLiveLedger, 8000, { enabled: isOpen && activeTab === "liveLedger" });
+  useSmartInterval(fetchPublicUsers, 10000, { enabled: isOpen && activeTab === "publicUsers" });
+  useSmartInterval(fetchSelectedUser, 10000, { enabled: isOpen && !!selectedInspectUser?.userId });
 
   const handleInspectUser = (userId: string) => {
     setLoadingInspectDetails(true);

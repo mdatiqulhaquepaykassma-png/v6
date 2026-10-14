@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { P2PRoomCard, P2PRoomCardProps } from './P2PRoomCard';
+import { P2PRoomCard, P2PRoomCardProps, areRoomCardPropsEqual } from './P2PRoomCard';
 
 // Singleton IntersectionObserver to avoid multiple observer overhead across hundreds of rooms
 type ObserverCallback = (isIntersecting: boolean) => void;
@@ -33,7 +33,7 @@ function getSharedObserver(): IntersectionObserver | null {
   return sharedObserver;
 }
 
-export const LazyVirtualRoomCard = React.memo<P2PRoomCardProps>((props) => {
+const LazyVirtualRoomCardComponent: React.FC<P2PRoomCardProps> = (props) => {
   const [isVisible, setIsVisible] = useState<boolean>(false);
   const containerRef = useRef<HTMLDivElement>(null);
 
@@ -89,6 +89,11 @@ export const LazyVirtualRoomCard = React.memo<P2PRoomCardProps>((props) => {
       )}
     </div>
   );
-});
+};
+
+export const LazyVirtualRoomCard = React.memo<P2PRoomCardProps>(
+  LazyVirtualRoomCardComponent,
+  areRoomCardPropsEqual
+);
 
 LazyVirtualRoomCard.displayName = 'LazyVirtualRoomCard';

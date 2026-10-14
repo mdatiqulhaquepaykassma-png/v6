@@ -57,7 +57,10 @@ export const P2PTableChat: React.FC<P2PTableChatProps> = ({ roomId = "global", u
 
   // Connect WebSocket / fetch initial
   useEffect(() => {
+    let fallbackPoll: NodeJS.Timeout | null = null;
+
     const fetchHistory = async () => {
+      if (document.hidden) return;
       try {
         const res = await fetch(`/api/chat/messages?roomId=${roomId}`);
         if (res.ok) {
@@ -70,12 +73,17 @@ export const P2PTableChat: React.FC<P2PTableChatProps> = ({ roomId = "global", u
     };
 
     fetchHistory();
-    const interval = setInterval(fetchHistory, 3000);
 
     const protocol = window.location.protocol === "https:" ? "wss:" : "ws:";
     let socket: WebSocket | null = null;
     try {
       socket = new WebSocket(`${protocol}//${window.location.host}`);
+      socket.onopen = () => {
+        if (fallbackPoll) {
+          clearInterval(fallbackPoll);
+          fallbackPoll = null;
+        }
+      };
       socket.onmessage = (event) => {
         try {
           const data = JSON.parse(event.data);
@@ -89,11 +97,19 @@ export const P2PTableChat: React.FC<P2PTableChatProps> = ({ roomId = "global", u
           }
         } catch {}
       };
+      socket.onclose = () => {
+        // Fallback polling only when WebSocket drops
+        if (!fallbackPoll) {
+          fallbackPoll = setInterval(fetchHistory, 12000);
+        }
+      };
       setWs(socket);
-    } catch {}
+    } catch {
+      fallbackPoll = setInterval(fetchHistory, 12000);
+    }
 
     return () => {
-      clearInterval(interval);
+      if (fallbackPoll) clearInterval(fallbackPoll);
       if (socket) socket.close();
     };
   }, [roomId]);

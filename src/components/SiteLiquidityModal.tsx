@@ -1,4 +1,5 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useCallback } from "react";
+import { useSmartInterval } from "../utils/smartPolling";
 import {
   X,
   RefreshCw,
@@ -33,7 +34,7 @@ export const SiteLiquidityModal: React.FC<SiteLiquidityModalProps> = ({
   const [sortBy, setSortBy] = useState<"balance" | "netProfit" | "gamesPlayed" | "lockedBalance">("balance");
   const [lastRefreshed, setLastRefreshed] = useState<string>("");
 
-  const fetchLiquidity = async () => {
+  const fetchLiquidity = useCallback(async () => {
     setLoading(true);
     try {
       const res = await fetch("/api/site/liquidity");
@@ -47,15 +48,15 @@ export const SiteLiquidityModal: React.FC<SiteLiquidityModalProps> = ({
     } finally {
       setLoading(false);
     }
-  };
+  }, []);
 
   useEffect(() => {
     if (isOpen) {
       fetchLiquidity();
-      const interval = setInterval(fetchLiquidity, 5000);
-      return () => clearInterval(interval);
     }
-  }, [isOpen]);
+  }, [isOpen, fetchLiquidity]);
+
+  useSmartInterval(fetchLiquidity, 12000, { enabled: isOpen, idleMultiplier: 3 });
 
   if (!isOpen) return null;
 

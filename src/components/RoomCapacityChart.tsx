@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useCallback } from "react";
 import {
   AreaChart,
   Area,
@@ -10,32 +10,33 @@ import {
 } from "recharts";
 import { Users, TrendingUp, Flame, Clock } from "lucide-react";
 import { CapacityTrendPoint } from "../types";
+import { useSmartInterval } from "../utils/smartPolling";
 
 export const RoomCapacityChart: React.FC = () => {
   const [data, setData] = useState<CapacityTrendPoint[]>([]);
   const [loading, setLoading] = useState<boolean>(true);
 
-  useEffect(() => {
-    const fetchTrends = async () => {
-      try {
-        const res = await fetch("/api/p2p/capacity-trends");
-        if (res.ok) {
-          const json = await res.json();
-          if (json.points && Array.isArray(json.points)) {
-            setData(json.points);
-          }
+  const fetchTrends = useCallback(async () => {
+    try {
+      const res = await fetch("/api/p2p/capacity-trends");
+      if (res.ok) {
+        const json = await res.json();
+        if (json.points && Array.isArray(json.points)) {
+          setData(json.points);
         }
-      } catch (e) {
-        console.error("Failed to load capacity trends:", e);
-      } finally {
-        setLoading(false);
       }
-    };
-
-    fetchTrends();
-    const interval = setInterval(fetchTrends, 30000);
-    return () => clearInterval(interval);
+    } catch (e) {
+      console.error("Failed to load capacity trends:", e);
+    } finally {
+      setLoading(false);
+    }
   }, []);
+
+  useEffect(() => {
+    fetchTrends();
+  }, [fetchTrends]);
+
+  useSmartInterval(fetchTrends, 45000, { idleMultiplier: 3 });
 
   if (loading && data.length === 0) {
     return (

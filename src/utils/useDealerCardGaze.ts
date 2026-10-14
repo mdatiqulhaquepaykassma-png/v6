@@ -14,6 +14,7 @@ export interface EyeGazeOffset {
 interface UseDealerCardGazeParams {
   containerRef: RefObject<HTMLDivElement | null>;
   gameStatus: "BETTING" | "MATCHING" | "DEALING" | "SETTLING" | "COMPLETED";
+  dealingStep?: "IDLE" | "DEALING_CARDS" | "REVEAL_DRAGON" | "REVEAL_TIGER" | "WINNER_REVEALED";
   winnerResult?: "DRAGON" | "TIGER" | "TIE" | null;
   dragonCardDisplay?: string;
   tigerCardDisplay?: string;
@@ -27,6 +28,7 @@ interface UseDealerCardGazeParams {
 export function useDealerCardGaze({
   containerRef,
   gameStatus,
+  dealingStep,
   winnerResult,
   dragonCardDisplay,
   tigerCardDisplay,
@@ -78,41 +80,41 @@ export function useDealerCardGaze({
 
     // 1. ACTIVE CARDS DEALING TRACKING (Priority 1)
     if (gameStatus === "DEALING") {
-      // Dealing card 1 to Dragon
-      if (dragonCardDisplay && !tigerCardDisplay) {
+      // Step: Reveal Dragon card
+      if (dealingStep === "REVEAL_DRAGON" || (dragonCardDisplay && !tigerCardDisplay)) {
         const computed = computeAnglesToElement('[data-card-slot="dragon"]', 2);
         if (computed) {
           setHeadRotation(computed.head);
           setEyeGaze(computed.gaze);
           return;
         }
-        setHeadRotation({ x: 5, y: -15, z: -2 });
-        setEyeGaze({ x: -3.2, y: 1.8 });
+        setHeadRotation({ x: 5, y: -16, z: -2 });
+        setEyeGaze({ x: -3.4, y: 1.8 });
         return;
       }
 
-      // Dealing card 2 to Tiger
-      if (tigerCardDisplay) {
+      // Step: Reveal Tiger card
+      if (dealingStep === "REVEAL_TIGER" || (tigerCardDisplay && dealingStep !== "WINNER_REVEALED")) {
         const computed = computeAnglesToElement('[data-card-slot="tiger"]', 2);
         if (computed) {
           setHeadRotation(computed.head);
           setEyeGaze(computed.gaze);
           return;
         }
-        setHeadRotation({ x: 5, y: 15, z: 2 });
-        setEyeGaze({ x: 3.2, y: 1.8 });
+        setHeadRotation({ x: 5, y: 16, z: 2 });
+        setEyeGaze({ x: 3.4, y: 1.8 });
         return;
       }
 
-      // Initial card slide out from shoe
+      // Step: Initial card glide out from shoe
       const computedShoe = computeAnglesToElement('[data-card-slot="shoe"]', 4);
       if (computedShoe) {
         setHeadRotation(computedShoe.head);
         setEyeGaze(computedShoe.gaze);
         return;
       }
-      setHeadRotation({ x: 6, y: -8, z: -1 });
-      setEyeGaze({ x: -2, y: 2 });
+      setHeadRotation({ x: 6, y: -9, z: -1.2 });
+      setEyeGaze({ x: -2.4, y: 2.2 });
       return;
     }
 
@@ -248,7 +250,7 @@ export function useDealerCardGaze({
       window.removeEventListener("mousemove", handleGlobalMouseMove);
       window.removeEventListener("touchmove", handleGlobalMouseMove);
     };
-  }, [containerRef, gameStatus, dragonCardDisplay, tigerCardDisplay, winnerResult, idleAction]);
+  }, [containerRef, gameStatus, dealingStep, dragonCardDisplay, tigerCardDisplay, winnerResult, idleAction]);
 
   return { headRotation, eyeGaze };
 }

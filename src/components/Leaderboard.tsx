@@ -1,7 +1,8 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { Trophy, Sparkles, TrendingUp, Coins } from 'lucide-react';
 import { LeaderboardEntry } from '../types';
 import { PullToRefresh } from './PullToRefresh';
+import { useSmartInterval } from '../utils/smartPolling';
 
 interface LeaderboardProps {
   onOpenLiquidity?: () => void;
@@ -18,7 +19,7 @@ export const Leaderboard = React.memo<LeaderboardProps>(({ onOpenLiquidity, curr
   const [leaderboard, setLeaderboard] = useState<LeaderboardEntry[]>([]);
   const [loading, setLoading] = useState<boolean>(true);
 
-  const fetchLeaderboard = async () => {
+  const fetchLeaderboard = useCallback(async () => {
     try {
       const res = await fetch(`/api/leaderboard?sortBy=profit`);
       if (!res.ok) {
@@ -35,13 +36,14 @@ export const Leaderboard = React.memo<LeaderboardProps>(({ onOpenLiquidity, curr
     } finally {
       setLoading(false);
     }
-  };
+  }, []);
 
   useEffect(() => {
     fetchLeaderboard();
-    const interval = setInterval(() => fetchLeaderboard(), 5000);
-    return () => clearInterval(interval);
-  }, []);
+  }, [fetchLeaderboard]);
+
+  // Bandwidth optimization: 25s visibility-aware interval
+  useSmartInterval(fetchLeaderboard, 25000, { idleMultiplier: 3 });
 
   return (
     <PullToRefresh onRefresh={fetchLeaderboard} className="max-w-4xl mx-auto space-y-6 pb-12">

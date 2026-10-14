@@ -4,6 +4,7 @@ if (typeof (globalThis as any).__dirname !== "undefined" && (globalThis as any).
 }
 
 import express from "express";
+import compression from "compression";
 import fs from "fs";
 import path from "path";
 import { fileURLToPath } from "url";
@@ -46,20 +47,46 @@ function kickSession(sessionId: string, reason: string) {
 }
 
 app.set("trust proxy", 1);
+
+// HTTP Compression (Gzip / Deflate / Brotli) - Reduces JSON and static asset bandwidth by up to 85%
+app.use(
+  compression({
+    level: 6,
+    threshold: 256, // Compress any response > 256 bytes
+    filter: (req, res) => {
+      if (req.headers["x-no-compression"]) {
+        return false;
+      }
+      return compression.filter(req, res);
+    },
+  })
+);
+
 app.use(express.json({ limit: '10mb' }));
 app.use(express.urlencoded({ extended: true, limit: '10mb' }));
 
-// Request Logger for Debugging Connectivity
-app.use((req, res, next) => {
-  if (!req.url.includes("/assets/") && !req.url.includes(".svg")) {
-    console.log(`[REQ] ${req.method} ${req.url} - ${new Date().toISOString()}`);
-  }
+// Helper to send JSON with ETag and 304 Not Modified support
+function sendJsonWithETag(req: express.Request, res: express.Response, data: any, maxAgeSeconds: number = 2) {
+  const jsonStr = JSON.stringify(data);
+  const etag = `"${crypto.createHash("md5").update(jsonStr).digest("hex").slice(0, 16)}"`;
   
-  // Track long-running requests
+  res.setHeader("ETag", etag);
+  res.setHeader("Cache-Control", `public, max-age=${maxAgeSeconds}, must-revalidate`);
+
+  if (req.headers["if-none-match"] === etag) {
+    return res.status(304).end();
+  }
+
+  res.setHeader("Content-Type", "application/json; charset=utf-8");
+  return res.send(jsonStr);
+}
+
+// Request timing middleware for debugging connectivity
+app.use((req, res, next) => {
   const start = Date.now();
   res.on('finish', () => {
     const duration = Date.now() - start;
-    if (duration > 1500) {
+    if (duration > 3000) {
       console.warn(`[SLOW-REQ] ${req.method} ${req.url} took ${duration}ms`);
     }
   });
@@ -118,7 +145,20 @@ app.get(["/admin", "/admin/*"], (req, res) => {
   }
 });
 
-const PORT = Number(process.env.PORT) || 3000;
+function parseArg(flag: string): string | undefined {
+  const idx = process.argv.indexOf(flag);
+  if (idx !== -1 && process.argv[idx + 1]) {
+    return process.argv[idx + 1];
+  }
+  const prefixMatch = process.argv.find((a) => a.startsWith(`${flag}=`));
+  if (prefixMatch) {
+    return prefixMatch.split("=")[1];
+  }
+  return undefined;
+}
+
+const PORT = Number(parseArg("--port") || process.env.PORT) || 3000;
+const HOST = parseArg("--host") || process.env.HOST || "0.0.0.0";
 
 function getGeminiClient() {
   const apiKey = process.env.GEMINI_API_KEY;
@@ -1741,13 +1781,13 @@ app.post("/api/chat/send", (req, res) => {
 });
 
 // 1. Tables Overview & Current Round
-app.get("/api/tables", (_req, res) => {
+app.get("/api/tables", (req, res) => {
   const result = Object.values(tables).map((t) => ({
     config: t.config,
     currentRound: t.currentRound,
     recentWinners: t.roadmap.slice(0, 10).map((r) => r.result),
   }));
-  res.json(result);
+  sendJsonWithETag(req, res, result, 1);
 });
 
 app.get("/api/tables/:slug/roadmap", (req, res) => {
@@ -3262,11 +3302,11 @@ app.get("/api/rooms", (req, res) => {
     const { password, ...rest } = room;
     return {
       ...rest,
-      hasPassword: !!password,
+      hasPassword: Boolean(password),
       password: password ? "🔒 Protected" : undefined,
     };
   });
-  res.json(sanitized);
+  sendJsonWithETag(req, res, sanitized, 1);
 });
 
 app.post("/api/rooms/create", requireUser, (req, res) => {
@@ -3894,11 +3934,11 @@ app.get("/api/leaderboard", (req, res) => {
       };
     })
     .sort((a, b) => b.profit - a.profit);
-  res.json(list);
+  sendJsonWithETag(req, res, list, 10);
 });
 
 // 8b. Full Site Liquidity & All Users Transparency Ledger
-app.get(["/api/site/liquidity", "/api/transparency"], (_req, res) => {
+app.get(["/api/site/liquidity", "/api/transparency"], (req, res) => {
   let totalRealBalance = 0;
   let totalDemoBalance = 0;
   let totalLockedEscrow = 0;
@@ -4005,13 +4045,13 @@ app.get(["/api/site/liquidity", "/api/transparency"], (_req, res) => {
     timestamp: new Date().toISOString(),
   };
 
-  res.json(responseData);
+  sendJsonWithETag(req, res, responseData, 5);
 });
 
 // ============================================================================
 // P2P ENHANCEMENTS: CAPACITY TRENDS, REPORTS & TABLE PING
 // ============================================================================
-app.get("/api/p2p/capacity-trends", (_req, res) => {
+app.get("/api/p2p/capacity-trends", (req, res) => {
   const now = new Date();
   const points: CapacityTrendPoint[] = [];
   const currentConnected = wss.clients.size;
@@ -4030,7 +4070,7 @@ app.get("/api/p2p/capacity-trends", (_req, res) => {
       activeRooms: currentRooms,
     });
   }
-  res.json({ success: true, points });
+  sendJsonWithETag(req, res, { success: true, points }, 15);
 });
 
 app.post("/api/reports/submit", (req, res) => {
@@ -4865,17 +4905,16 @@ app.use((err: any, req: express.Request, res: express.Response, next: express.Ne
 // SERVER STARTUP & VITE INTEGRATION
 // ============================================================================
 async function startServer() {
-  const hasDist = fs.existsSync(path.join(process.cwd(), "dist"));
-  const env = process.env.NODE_ENV || (hasDist ? "production" : "development");
-  console.log(`[BOOT] Detected Environment: ${env} (NODE_ENV: ${process.env.NODE_ENV || 'unset'}, hasDist: ${hasDist})`);
+  const isProduction = process.env.NODE_ENV === "production";
+  console.log(`[BOOT] Detected Environment: ${isProduction ? "production" : "development"} (NODE_ENV: ${process.env.NODE_ENV || 'unset'})`);
   console.log(`[BOOT] Working Directory: ${process.cwd()}`);
 
-  if (env !== "production" && !hasDist) {
+  if (!isProduction) {
     console.log("[BOOT] Starting with Vite Development Middleware...");
     const vite = await createViteServer({
       server: {
         middlewareMode: true,
-        hmr: process.env.DISABLE_HMR === "true" ? false : undefined,
+        hmr: false,
       },
       appType: "spa",
     });
@@ -4941,8 +4980,8 @@ async function startServer() {
     });
   }
 
-  server.listen(PORT, "0.0.0.0", () => {
-    console.log(`Dragon Tiger P2P Server running on http://localhost:${PORT}`);
+  server.listen(PORT, HOST, () => {
+    console.log(`Dragon Tiger P2P Server running on http://${HOST}:${PORT}`);
   });
 }
 

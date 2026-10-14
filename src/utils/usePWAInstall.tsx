@@ -276,32 +276,28 @@ export const PWAInstallProvider: React.FC<{ children: React.ReactNode }> = ({ ch
 
   const openApp = useCallback(async () => {
     if (checkIsStandalone()) return;
-
     if (typeof window === 'undefined') return;
 
     const origin = window.location.origin;
     const host = window.location.host;
     const pathname = window.location.pathname || '/';
     const scheme = window.location.protocol.replace(':', '') || 'https';
-
+    const fallbackUrl = encodeURIComponent(`${origin}${pathname}`);
     const ua = window.navigator.userAgent.toLowerCase();
     const isAndroidDevice = /android/.test(ua);
 
-    // 1. Android Intent Direct Launch:
-    // Uses the native android.intent.action.VIEW scheme so Android OS directly delegates to the installed WebAPK/PWA app
     if (isAndroidDevice) {
       try {
-        const intentUri = `intent://${host}${pathname}#Intent;scheme=${scheme};action=android.intent.action.VIEW;end;`;
-        window.location.href = intentUri;
+        const intentUri = `intent://${host}${pathname}#Intent;scheme=${scheme};package=com.android.chrome;S.browser_fallback_url=${fallbackUrl};end;`;
+        window.location.assign(intentUri);
         return;
       } catch (e) {
         console.debug('Android Intent launch fallback:', e);
       }
     }
 
-    // 2. Direct Window Fallback for iOS / Desktop / Other browsers
     try {
-      window.location.href = origin + pathname;
+      window.location.assign(origin + pathname);
     } catch {
       window.location.href = '/';
     }

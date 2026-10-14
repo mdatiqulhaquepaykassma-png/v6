@@ -17,6 +17,8 @@ const PRESERVED_STORAGE_KEYS = [
   'dt_pwa_installed',
   'dt_active_table',
   'dt_admin_token',
+  'dt_app_running_version',
+  'dt_last_build_hash',
 ];
 
 let isPurgingAndReloading = false;

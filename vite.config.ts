@@ -62,9 +62,9 @@ export default defineConfig(() => {
         includeAssets: ['favicon.ico', 'apple-touch-icon.png', 'icon.svg', 'pwa-192x192.png', 'pwa-512x512.png', 'pwa-maskable-512x512.png', 'sw-metadata.json'],
         manifest: {
           id: '/',
-          name: 'APEX CASINO: Dragon Tiger P2P',
-          short_name: 'APEX Casino',
-          description: 'High-stakes Dragon Tiger P2P arena with real-time multiplayer rooms, transparency charter, and secure wallet integration.',
+          name: 'v10 Dragon Tiger P2P',
+          short_name: 'Dragon Tiger P2P',
+          description: 'High-stakes Dragon Tiger P2P betting game with real-time multiplayer rooms, live leaderboard, and secure wallet integration.',
           theme_color: '#0a0d14',
           background_color: '#07090e',
           display: 'standalone',
@@ -197,8 +197,8 @@ export default defineConfig(() => {
       },
     },
     server: {
-      hmr: process.env.DISABLE_HMR !== 'true',
-      watch: process.env.DISABLE_HMR === 'true' ? null : {},
+      hmr: false,
+      watch: null,
     },
   };
 });

@@ -513,6 +513,7 @@ export const GameTable = React.memo<GameTableProps>(({
 
   // Staggered cinematic card dealing step tracking
   const [dealingStep, setDealingStep] = useState<"IDLE" | "DEALING_CARDS" | "REVEAL_DRAGON" | "REVEAL_TIGER" | "WINNER_REVEALED">("IDLE");
+  const [dealerStageMode, setDealerStageMode] = useState<boolean>(false);
   const dealingTimersRef = useRef<NodeJS.Timeout[]>([]);
 
   // Cleanup dealing timers on unmount
@@ -2490,6 +2491,7 @@ export const GameTable = React.memo<GameTableProps>(({
                     <div className="relative z-20 flex items-center justify-center -mt-2 sm:-mt-3 scale-80 xs:scale-90 sm:scale-100 origin-top-right shrink-0">
                        <DealerAvatar
                          gameStatus={currentRound?.status || "BETTING"}
+                         dealingStep={dealingStep}
                          winnerResult={currentRound?.result}
                          dragonCardDisplay={currentRound?.dragonCard?.display}
                          tigerCardDisplay={currentRound?.tigerCard?.display}
@@ -2499,6 +2501,8 @@ export const GameTable = React.memo<GameTableProps>(({
                          userWon={isUserLastRoundWinner}
                          userLost={Boolean(activeConfirmedBet && !isUserLastRoundWinner && currentRound?.result && currentRound.result !== "TIE" && (currentRound.matchedAmount || 0) > 0)}
                          bettingVolumeSpike={isBettingVolumeSpike}
+                         stageMode={dealerStageMode}
+                         onToggleStageMode={() => setDealerStageMode((prev) => !prev)}
                        />
                     </div>
                  </div>

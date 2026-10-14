@@ -1,5 +1,6 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useCallback } from "react";
 import { X, ShieldAlert, BarChart3, Users, DollarSign, Settings, RefreshCw, CheckCircle, Trash2, AlertTriangle, Coins } from "lucide-react";
+import { useSmartInterval } from "../utils/smartPolling";
 
 interface AdminModalProps {
   onClose: () => void;
@@ -50,7 +51,7 @@ export const AdminModal: React.FC<AdminModalProps> = ({ onClose }) => {
   const [saveSuccess, setSaveSuccess] = useState<string | null>(null);
   const [isResetting, setIsResetting] = useState<boolean>(false);
 
-  const fetchStats = async () => {
+  const fetchStats = useCallback(async () => {
     if (!isAuthorized) return;
     try {
       const res = await fetch("/api/admin/stats");
@@ -61,15 +62,15 @@ export const AdminModal: React.FC<AdminModalProps> = ({ onClose }) => {
     } finally {
       setLoading(false);
     }
-  };
+  }, [isAuthorized]);
 
   useEffect(() => {
     if (isAuthorized) {
       fetchStats();
-      const interval = setInterval(fetchStats, 3000);
-      return () => clearInterval(interval);
     }
-  }, [isAuthorized]);
+  }, [isAuthorized, fetchStats]);
+
+  useSmartInterval(fetchStats, 15000, { enabled: isAuthorized, idleMultiplier: 3 });
 
   const handleAdminLogin = (e: React.FormEvent) => {
     e.preventDefault();

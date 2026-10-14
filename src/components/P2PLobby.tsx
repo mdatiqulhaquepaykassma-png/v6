@@ -43,6 +43,7 @@ import { useStableCallback } from '../utils/useStableCallback';
 import { sound } from '../utils/audio';
 import { formatCurrency, getStoredCurrencyCode, getActiveCurrencySymbol } from '../utils/currency';
 import { PullToRefresh } from './PullToRefresh';
+import { useSmartInterval, isPageVisible } from '../utils/smartPolling';
 
 interface P2PLobbyProps {
   user: UserWallet | null;
@@ -120,30 +121,22 @@ export const P2PLobby = React.memo<P2PLobbyProps>(({ user, onUpdateWallet, onReq
     }
   };
 
-  useEffect(() => {
+  const loadRecentMatches = useCallback(async () => {
     if (!user?.userId) return;
-    let isMounted = true;
-    const loadRecentMatches = async () => {
-      try {
-        const res = await fetch(`/api/rooms/history/${user.userId}`);
-        if (res.ok && isMounted) {
-          const data = await res.json();
-          if (Array.isArray(data) && isMounted) {
-            setRecentMatches(data.filter((r: any) => r.status === 'completed' || r.winner));
-          }
+    try {
+      const res = await fetch(`/api/rooms/history/${user.userId}`);
+      if (res.ok) {
+        const data = await res.json();
+        if (Array.isArray(data)) {
+          setRecentMatches(data.filter((r: any) => r.status === 'completed' || r.winner));
         }
-      } catch {
-        // quiet fallback
       }
-    };
-
-    loadRecentMatches();
-    const interval = setInterval(loadRecentMatches, 5000);
-    return () => {
-      isMounted = false;
-      clearInterval(interval);
-    };
+    } catch {
+      // quiet fallback
+    }
   }, [user?.userId]);
+
+  useSmartInterval(loadRecentMatches, 25000, { enabled: !!user?.userId, idleMultiplier: 3 });
 
   const displayRecentMatches = recentMatches.length > 0 ? recentMatches.slice(0, 5) : [];
 
@@ -208,58 +201,51 @@ export const P2PLobby = React.memo<P2PLobbyProps>(({ user, onUpdateWallet, onReq
     }
   };
 
-  useEffect(() => {
-    let isMounted = true;
-    const loadRooms = async () => {
-      try {
-        const [roomsRes, metricsRes] = await Promise.all([
-          fetch(`/api/rooms?userId=${encodeURIComponent(user?.userId || '')}`).catch(() => null),
-          fetch('/api/transparency').catch(() => null),
-        ]);
+  const loadRooms = useCallback(async () => {
+    try {
+      const [roomsRes, metricsRes] = await Promise.all([
+        fetch(`/api/rooms?userId=${encodeURIComponent(user?.userId || '')}`).catch(() => null),
+        fetch('/api/transparency').catch(() => null),
+      ]);
 
-        if (roomsRes && roomsRes.ok && isMounted) {
-          const data = await roomsRes.json();
-          if (Array.isArray(data) && isMounted) {
-            setRooms(data);
-            data.forEach((r) => {
-              if (isFavorite(r.id) && r.status === 'matched') {
-                sendNotification({
-                  title: `⚔️ Favorite Room Action: ${r.creatorName}`,
-                  body: `A match was accepted in your favorited challenge room (${r.id})!`,
-                  type: 'round_start',
-                  roomId: r.id,
-                });
-              }
-            });
-          }
-        }
-
-        if (metricsRes && metricsRes.ok && isMounted) {
-          const m = await metricsRes.json();
-          if (isMounted) {
-            setPlatformMetrics({
-              todayCommission: m.todayCommission || 0,
-              todayTieRevenue: m.todayTieRevenue || 0,
-              todayMatchedVolume: m.todayMatchedVolume || 0,
-            });
-          }
-        }
-      } catch (e) {
-        console.warn('Failed to fetch P2P rooms:', e);
-      } finally {
-        if (isMounted) {
-          setIsInitialLoading(false);
+      if (roomsRes && roomsRes.ok) {
+        const data = await roomsRes.json();
+        if (Array.isArray(data)) {
+          setRooms(data);
+          data.forEach((r) => {
+            if (isFavorite(r.id) && r.status === 'matched') {
+              sendNotification({
+                title: `⚔️ Favorite Room Action: ${r.creatorName}`,
+                body: `A match was accepted in your favorited challenge room (${r.id})!`,
+                type: 'round_start',
+                roomId: r.id,
+              });
+            }
+          });
         }
       }
-    };
 
+      if (metricsRes && metricsRes.ok) {
+        const m = await metricsRes.json();
+        setPlatformMetrics({
+          todayCommission: m.todayCommission || 0,
+          todayTieRevenue: m.todayTieRevenue || 0,
+          todayMatchedVolume: m.todayMatchedVolume || 0,
+        });
+      }
+    } catch (e) {
+      console.warn('Failed to fetch P2P rooms:', e);
+    } finally {
+      setIsInitialLoading(false);
+    }
+  }, [user?.userId, isFavorite, sendNotification]);
+
+  useEffect(() => {
     loadRooms();
-    const interval = setInterval(loadRooms, 3000);
-    return () => {
-      isMounted = false;
-      clearInterval(interval);
-    };
-  }, [isFavorite]);
+  }, [loadRooms]);
+
+  // Use smart visibility-aware interval for room sync (WebSocket is primary, this is lightweight fallback)
+  useSmartInterval(loadRooms, 12000, { idleMultiplier: 3 });
 
   // Dedicated WebSocket Listener with Full Teardown & State Reset
   useEffect(() => {

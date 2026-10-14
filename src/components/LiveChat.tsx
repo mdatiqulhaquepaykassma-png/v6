@@ -46,8 +46,12 @@ export const LiveChat: React.FC<LiveChatProps> = ({ username, onInspectUser, onR
   };
 
   useEffect(() => {
+    let socket: WebSocket | null = null;
+    let fallbackPoll: NodeJS.Timeout | null = null;
+
     // Initial fetch of chat history
     const fetchChat = async () => {
+      if (document.hidden) return;
       try {
         const res = await fetch("/api/chat/messages");
         if (res.ok) {
@@ -62,12 +66,16 @@ export const LiveChat: React.FC<LiveChatProps> = ({ username, onInspectUser, onR
     };
 
     fetchChat();
-    const pollInterval = setInterval(fetchChat, 2000);
 
     const protocol = window.location.protocol === "https:" ? "wss:" : "ws:";
-    let socket: WebSocket | null = null;
     try {
       socket = new WebSocket(`${protocol}//${window.location.host}`);
+      socket.onopen = () => {
+        if (fallbackPoll) {
+          clearInterval(fallbackPoll);
+          fallbackPoll = null;
+        }
+      };
       socket.onmessage = (event) => {
         try {
           const data = JSON.parse(event.data);
@@ -86,13 +94,28 @@ export const LiveChat: React.FC<LiveChatProps> = ({ username, onInspectUser, onR
           console.error(e);
         }
       };
+      socket.onclose = () => {
+        // Start relaxed fallback polling only if WebSocket disconnects
+        if (!fallbackPoll) {
+          fallbackPoll = setInterval(fetchChat, 10000);
+        }
+      };
       setWs(socket);
     } catch {
-      // ws unsupported or blocked
+      // ws unsupported or blocked -> relaxed fallback polling
+      fallbackPoll = setInterval(fetchChat, 10000);
     }
 
+    const handleVisibility = () => {
+      if (document.visibilityState === 'visible' && (!socket || socket.readyState !== WebSocket.OPEN)) {
+        fetchChat();
+      }
+    };
+    document.addEventListener('visibilitychange', handleVisibility);
+
     return () => {
-      clearInterval(pollInterval);
+      if (fallbackPoll) clearInterval(fallbackPoll);
+      document.removeEventListener('visibilitychange', handleVisibility);
       if (socket) socket.close();
     };
   }, []);

@@ -32,6 +32,7 @@ import {
 import { UserWallet, P2PRoom, PlayingCard } from "../types";
 import { sound } from "../utils/audio";
 import { getActiveCurrencySymbol, formatCurrency } from "../utils/currency";
+import { useSmartInterval } from "../utils/smartPolling";
 import confetti from "canvas-confetti";
 
 interface OneOnOneArenaProps {
@@ -174,10 +175,13 @@ export const OneOnOneArena: React.FC<OneOnOneArenaProps> = ({ user, onUpdateWall
   useEffect(() => {
     if (lobbyTab === "history" && user?.userId) {
       fetchHistoryRooms();
-      const interval = setInterval(fetchHistoryRooms, 5000);
-      return () => clearInterval(interval);
     }
   }, [lobbyTab, user?.userId]);
+
+  useSmartInterval(fetchHistoryRooms, 20000, {
+    enabled: lobbyTab === "history" && !!user?.userId,
+    idleMultiplier: 3,
+  });
 
   // Automatic Join-Link Detector & Processer on component mount
   useEffect(() => {
@@ -210,40 +214,41 @@ export const OneOnOneArena: React.FC<OneOnOneArenaProps> = ({ user, onUpdateWall
   const chatScrollRef = useRef<HTMLDivElement>(null);
 
   // Synchronized Multi-User Chat Poller Loop
-  useEffect(() => {
-    const fetchChat = async () => {
-      try {
-        const res = await fetch("/api/chat/messages");
-        if (res.ok) {
-          const contentType = res.headers.get("content-type");
-          if (contentType && contentType.includes("application/json")) {
-            const messages = await res.json();
-            if (Array.isArray(messages)) {
-              const mapped = messages.map((m: any, idx: number) => ({
-                id: `chat_${idx}_${m.time}`,
-                sender: m.user,
-                isUser: m.user === user?.username,
-                text: m.text,
-                timestamp: m.time,
-              }));
-              setChatLog((prev) => {
-                if (mapped.length > prev.length && !isCommsOpen) {
-                  setUnreadChatCount((u) => u + (mapped.length - prev.length));
-                }
-                return mapped;
-              });
-            }
+  const fetchChat = useCallback(async () => {
+    try {
+      const res = await fetch("/api/chat/messages");
+      if (res.ok) {
+        const contentType = res.headers.get("content-type");
+        if (contentType && contentType.includes("application/json")) {
+          const messages = await res.json();
+          if (Array.isArray(messages)) {
+            const mapped = messages.map((m: any, idx: number) => ({
+              id: `chat_${idx}_${m.time}`,
+              sender: m.user,
+              isUser: m.user === user?.username,
+              text: m.text,
+              timestamp: m.time,
+            }));
+            setChatLog((prev) => {
+              if (mapped.length > prev.length && !isCommsOpen) {
+                setUnreadChatCount((u) => u + (mapped.length - prev.length));
+              }
+              return mapped;
+            });
           }
         }
-      } catch (e) {
-        console.warn(e);
       }
-    };
-    
-    fetchChat();
-    const interval = setInterval(fetchChat, 1500);
-    return () => clearInterval(interval);
+    } catch (e) {
+      console.warn(e);
+    }
   }, [user?.username, isCommsOpen]);
+
+  useEffect(() => {
+    fetchChat();
+  }, [fetchChat]);
+
+  // Bandwidth optimization: relaxed visibility-aware chat sync
+  useSmartInterval(fetchChat, 10000, { enabled: isCommsOpen, idleMultiplier: 3 });
 
   // Auto-scroll chat to bottom when updated
   useEffect(() => {
@@ -408,9 +413,13 @@ export const OneOnOneArena: React.FC<OneOnOneArenaProps> = ({ user, onUpdateWall
   useEffect(() => {
     if (activeMode !== "in_match" || !duel?.matchId) return;
     pollDuelState();
-    const interval = setInterval(pollDuelState, 1000);
-    return () => clearInterval(interval);
   }, [activeMode, duel?.matchId, pollDuelState]);
+
+  // Bandwidth optimization: fallback duel polling at 4s with visibility check (WebSocket is primary)
+  useSmartInterval(pollDuelState, 4000, {
+    enabled: activeMode === "in_match" && !!duel?.matchId,
+    idleMultiplier: 3,
+  });
 
   // Real-time Duel WebSocket Spectator Connection & Authentic Opponent Chat
   useEffect(() => {
@@ -531,9 +540,10 @@ export const OneOnOneArena: React.FC<OneOnOneArenaProps> = ({ user, onUpdateWall
 
   useEffect(() => {
     fetchRooms();
-    const interval = setInterval(fetchRooms, 3000);
-    return () => clearInterval(interval);
   }, [user?.userId]);
+
+  // Bandwidth optimization: 15s visibility-aware room sync
+  useSmartInterval(fetchRooms, 15000, { idleMultiplier: 3 });
 
   useEffect(() => {
     if (chatScrollRef.current) {
